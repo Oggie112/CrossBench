@@ -7,10 +7,10 @@ description: MVP roadmap for the political disclosure tracker — schema, four-s
 |          | Status        | Next Up                                        | Blocked                          |
 | -------- | ------------- | ----------------------------------------------- | --------------------------------- |
 | **SCH**  | ✅ Milestone 1 schema complete (all 5 tables pushed) | —                                | —                                  |
-| **ADP**  | Not started   | SourceAdapter interface                         | Country adapters (need interface) |
+| **ADP**  | UK adapter complete | AU/EU/US House/US Senate adapters (unblocked) | — |
 | **ING**  | Not started   | Staleness indicator (unblocked)                 | Cron/idempotency (need adapters)  |
 | **RNK**  | Not started   | Seed weights, cluster score, cross-jurisdiction (unblocked) | Signal score (needs populated data) |
-| **FE**   | Not started   | Next.js scaffold, Supabase TS types (unblocked) | Data-backed pages (need RNK)      |
+| **FE**   | ✅ Next.js scaffold complete | Supabase TS types, Call/Put badge (unblocked) | Data-backed pages (need RNK/TS types) |
 | **BT**   | Not started   | Stooq price ingestion, backtest_positions table (unblocked) | Event-study logic (needs data) |
 
 ---
@@ -42,16 +42,14 @@ _None._
 
 <a name="m1-todo"><h4>To Do (Milestone 1)</h4></a>
 
-- [ ] 1ADP.1. Define common `SourceAdapter` interface (`fetch()` + `parse()`)
 - [ ] 1ING.3. Build "data last updated" footer indicator from `ingestion_runs`
+- [ ] 1ADP.3. Build Australia adapter (register, threshold-crossing)
+- [ ] 1ADP.4. Build EU Commission adapter (Commissioners' declarations ZIP)
 
 <a name="m1-blocked"><h4>Blocked (Milestone 1)</h4></a>
 
-- [ ] 1ADP.2. Build UK adapter (Parliament Open Data API, threshold-crossing) — **depends on 1ADP.1**
-- [ ] 1ADP.3. Build Australia adapter (register, threshold-crossing) — **depends on 1ADP.1**
-- [ ] 1ADP.4. Build EU Commission adapter (Commissioners' declarations ZIP) — **depends on 1ADP.1**
-- [ ] 1ING.1. Set up staggered Vercel Cron jobs (once/day) for UK/AU/EU — **depends on 1ADP.2, 1ADP.3, 1ADP.4**
-- [ ] 1ING.2. Implement idempotency hash (`official + content + publish_date`) for UK/AU/EU `raw_documents` — **depends on 1ADP.2, 1ADP.3, 1ADP.4**
+- [ ] 1ING.1. Set up staggered Vercel Cron jobs (once/day) for UK/AU/EU — **depends on 1ADP.3, 1ADP.4**
+- [ ] 1ING.2. Implement idempotency for AU/EU `raw_documents` (UK adapter already supplies a stable API `id` as `source_ref`; confirm whether AU/EU expose a similar stable ID or need a content hash) — **depends on 1ADP.3, 1ADP.4**
 
 <a name="m1-done"><h4>Completed (Milestone 1)</h4></a>
 
@@ -60,6 +58,8 @@ _None._
 - [x] 1SCH.3. Create `raw_documents` staging table with `unique(source_name, source_ref)` idempotency constraint
 - [x] 1SCH.4. Create `disclosure_events` canonical table
 - [x] 1SCH.5. Create `ingestion_runs` table
+- [x] 1ADP.1. Define common `SourceAdapter` interface (`fetch()` + `parse()`)
+- [x] 1ADP.2. Build UK adapter (Parliament Interests API, Shareholdings category, threshold-crossing)
 
 ---
 
@@ -74,12 +74,11 @@ _None._
 
 <a name="m2-todo"><h4>To Do (Milestone 2)</h4></a>
 
-_None — all tasks depend on Milestone 1 foundations._
+- [ ] 2ADP.5. Build US House adapter (bulk ZIP + PDF form parsing)
+- [ ] 2ADP.6. Build US Senate eFD scraper (fragile, no bulk API — design to degrade gracefully)
 
 <a name="m2-blocked"><h4>Blocked (Milestone 2)</h4></a>
 
-- [ ] 2ADP.5. Build US House adapter (bulk ZIP + PDF form parsing) — **depends on 1ADP.1**
-- [ ] 2ADP.6. Build US Senate eFD scraper (fragile, no bulk API — design to degrade gracefully) — **depends on 1ADP.1**
 - [ ] 2ING.4. Implement idempotency via real filing ID for US — **depends on 2ADP.5**
 - [ ] 2ING.5. Graceful-degradation handling so Senate scraper failures don't block the rest of the pipeline — **depends on 2ADP.6**
 - [ ] 2ING.6. Add staggered US Vercel Cron job — **depends on 2ADP.5, 2ADP.6**
@@ -128,22 +127,21 @@ _None._
 
 <a name="m4-todo"><h4>To Do (Milestone 4)</h4></a>
 
-- [ ] 4FE.1. Scaffold Next.js (App Router) + TypeScript + Tailwind project
 - [ ] 4FE.2. Generate Supabase TypeScript types
+- [ ] 4FE.8. Add ▲Call/▼Put badge component for options
 
 <a name="m4-blocked"><h4>Blocked (Milestone 4)</h4></a>
 
-- [ ] 4FE.3. Build homepage top-5 leaderboard from `mv_signal_scores` — **depends on 3RNK.5, 4FE.1, 4FE.2**
+- [ ] 4FE.3. Build homepage top-5 leaderboard from `mv_signal_scores` — **depends on 3RNK.5, 4FE.2**
 - [ ] 4FE.4. Build homepage teaser panels ("US activity this week", "Notable positions — UK/AU/EU") — **depends on 4FE.3**
 - [ ] 4FE.5. Build always-visible "notable options activity" homepage list — **depends on 4FE.3**
-- [ ] 4FE.6. Build `/us` filterable feed (chamber, party, committee, ticker, equity/options chip) — **depends on 4FE.1, 4FE.2**
-- [ ] 4FE.7. Build `/global` feed (UK/AU/EU threshold crossings, framed as "position changes" not "trades") — **depends on 4FE.1, 4FE.2**
-- [ ] 4FE.8. Add ▲Call/▼Put badge component for options — **depends on 4FE.1**
+- [ ] 4FE.6. Build `/us` filterable feed (chamber, party, committee, ticker, equity/options chip) — **depends on 4FE.2**
+- [ ] 4FE.7. Build `/global` feed (UK/AU/EU threshold crossings, framed as "position changes" not "trades") — **depends on 4FE.2**
 - [ ] 4FE.9. Integrate Recharts (leaderboard bars, score-over-time, sector volume) — **depends on 4FE.3**
 
 <a name="m4-done"><h4>Completed (Milestone 4)</h4></a>
 
-_None._
+- [x] 4FE.1. Scaffold Next.js (App Router) + TypeScript + Tailwind project
 
 ---
 
@@ -183,22 +181,14 @@ title: Progress Map
 ---
 graph TD
 
-1ADP.1["`*1ADP.1*<br/>**Adapters**<br/>SourceAdapter interface`"]:::open
-
-1ADP.2["`*1ADP.2*<br/>**Adapters**<br/>UK adapter`"]:::blocked
-1ADP.1 --> 1ADP.2
-1ADP.3["`*1ADP.3*<br/>**Adapters**<br/>Australia adapter`"]:::blocked
-1ADP.1 --> 1ADP.3
-1ADP.4["`*1ADP.4*<br/>**Adapters**<br/>EU Commission adapter`"]:::blocked
-1ADP.1 --> 1ADP.4
+1ADP.3["`*1ADP.3*<br/>**Adapters**<br/>Australia adapter`"]:::open
+1ADP.4["`*1ADP.4*<br/>**Adapters**<br/>EU Commission adapter`"]:::open
 
 1ING.1["`*1ING.1*<br/>**Ingestion**<br/>UK/AU/EU cron`"]:::blocked
-1ADP.2 --> 1ING.1
 1ADP.3 --> 1ING.1
 1ADP.4 --> 1ING.1
 
 1ING.2["`*1ING.2*<br/>**Ingestion**<br/>UK/AU/EU idempotency`"]:::blocked
-1ADP.2 --> 1ING.2
 1ADP.3 --> 1ING.2
 1ADP.4 --> 1ING.2
 
@@ -209,11 +199,9 @@ m1["`**Milestone 1**<br/>Schema & Structured Sources`"]:::mile
 1ING.2 --> m1
 1ING.3 --> m1
 
-2ADP.5["`*2ADP.5*<br/>**Adapters**<br/>US House adapter`"]:::blocked
-1ADP.1 --> 2ADP.5
+2ADP.5["`*2ADP.5*<br/>**Adapters**<br/>US House adapter`"]:::open
 
-2ADP.6["`*2ADP.6*<br/>**Adapters**<br/>US Senate scraper`"]:::blocked
-1ADP.1 --> 2ADP.6
+2ADP.6["`*2ADP.6*<br/>**Adapters**<br/>US Senate scraper`"]:::open
 
 2ING.4["`*2ING.4*<br/>**Ingestion**<br/>US idempotency (filing ID)`"]:::blocked
 2ADP.5 --> 2ING.4
@@ -254,13 +242,10 @@ m2["`**Milestone 2**<br/>US Ingestion`"]:::mile
 m3["`**Milestone 3**<br/>Ranking Engine`"]:::mile
 3RNK.6 --> m3
 
-4FE.1["`*4FE.1*<br/>**Frontend**<br/>Next.js scaffold`"]:::open
-
 4FE.2["`*4FE.2*<br/>**Frontend**<br/>Supabase TS types`"]:::open
 
 4FE.3["`*4FE.3*<br/>**Frontend**<br/>homepage leaderboard`"]:::blocked
 3RNK.5 --> 4FE.3
-4FE.1 --> 4FE.3
 4FE.2 --> 4FE.3
 
 4FE.4["`*4FE.4*<br/>**Frontend**<br/>homepage teasers`"]:::blocked
@@ -270,15 +255,12 @@ m3["`**Milestone 3**<br/>Ranking Engine`"]:::mile
 4FE.3 --> 4FE.5
 
 4FE.6["`*4FE.6*<br/>**Frontend**<br/>/us feed`"]:::blocked
-4FE.1 --> 4FE.6
 4FE.2 --> 4FE.6
 
 4FE.7["`*4FE.7*<br/>**Frontend**<br/>/global feed`"]:::blocked
-4FE.1 --> 4FE.7
 4FE.2 --> 4FE.7
 
-4FE.8["`*4FE.8*<br/>**Frontend**<br/>Call/Put badge`"]:::blocked
-4FE.1 --> 4FE.8
+4FE.8["`*4FE.8*<br/>**Frontend**<br/>Call/Put badge`"]:::open
 
 4FE.9["`*4FE.9*<br/>**Frontend**<br/>Recharts integration`"]:::blocked
 4FE.3 --> 4FE.9
