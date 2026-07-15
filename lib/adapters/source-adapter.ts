@@ -22,6 +22,7 @@ export interface ParsedDisclosure {
 	notificationDate?: string;
 	amountMin?: number;
 	amountMax?: number;
+	currency?: string;
 	valueBand?: string;
 	asOfDate?: string;
 	confidence?: "high" | "low";
