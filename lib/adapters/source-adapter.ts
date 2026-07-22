@@ -32,6 +32,12 @@ export interface SourceAdapter {
 	readonly sourceName: string;
 	readonly country: Country;
 
-	fetch(): Promise<RawDocument[]>;
+	// knownSourceRefs lets orchestration tell an adapter which source_refs
+	// already exist in raw_documents, so a source that has to fetch each
+	// document individually (e.g. one HTTP request per PDF) can skip
+	// re-downloading ones it's already stored. Optional and ignorable -
+	// adapters that fetch everything in one request (UK, EU) have no need
+	// for it.
+	fetch(knownSourceRefs?: ReadonlySet<string>): Promise<RawDocument[]>;
 	parse(document: RawDocument): Promise<ParsedDisclosure[]>;
 }
