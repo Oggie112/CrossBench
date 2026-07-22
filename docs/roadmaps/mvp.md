@@ -7,8 +7,8 @@ description: MVP roadmap for the political disclosure tracker — schema, four-s
 |          | Status        | Next Up                                        | Blocked                          |
 | -------- | ------------- | ----------------------------------------------- | --------------------------------- |
 | **SCH**  | ✅ Milestone 1 schema complete (all 5 tables pushed) | —                                | —                                  |
-| **ADP**  | UK adapter complete | AU/EU/US House/US Senate adapters (unblocked) | — |
-| **ING**  | Not started   | Staleness indicator (unblocked)                 | Cron/idempotency (need adapters)  |
+| **ADP**  | UK + EU Commission adapters complete | US House/US Senate adapters (unblocked) | AU (open sourcing question — see `1ADP.3`) |
+| **ING**  | Not started   | Staleness indicator, UK/EU cron, UK/EU idempotency (all unblocked) | — |
 | **RNK**  | Not started   | Seed weights, cluster score, cross-jurisdiction (unblocked) | Signal score (needs populated data) |
 | **FE**   | ✅ Next.js scaffold complete | Supabase TS types, Call/Put badge (unblocked) | Data-backed pages (need RNK/TS types) |
 | **BT**   | Not started   | Stooq price ingestion, backtest_positions table (unblocked) | Event-study logic (needs data) |
@@ -34,7 +34,7 @@ description: MVP roadmap for the political disclosure tracker — schema, four-s
 <a name="m1"><h3>Milestone 1: Schema & Structured Sources</h3></a>
 
 > [!IMPORTANT]
-> **Goal:** Stand up the core Supabase schema and the `SourceAdapter` pattern, then ingest UK, Australia, and EU Commission disclosures — the three structured/bulk-format sources — into `disclosure_events`.
+> **Goal:** Stand up the core Supabase schema and the `SourceAdapter` pattern, then ingest UK and EU Commission disclosures — the confirmed structured/bulk-format sources — into `disclosure_events`. Australia's status is unresolved (see `1ADP.3`).
 
 <a name="m1-doing"><h4>In Progress (Milestone 1)</h4></a>
 
@@ -43,13 +43,12 @@ _None._
 <a name="m1-todo"><h4>To Do (Milestone 1)</h4></a>
 
 - [ ] 1ING.3. Build "data last updated" footer indicator from `ingestion_runs`
-- [ ] 1ADP.3. Build Australia adapter (register, threshold-crossing)
-- [ ] 1ADP.4. Build EU Commission adapter (Commissioners' declarations ZIP)
+- [ ] 1ING.1. Set up staggered Vercel Cron jobs (once/day) for UK/EU
+- [ ] 1ING.2. Implement idempotency for EU `raw_documents` (UK/EU adapters both already supply a stable `source_ref` — UK via the API's own interest `id`, EU via `{commissioner-slug}_{zip-last-modified-date}` — no content hash needed for either)
 
 <a name="m1-blocked"><h4>Blocked (Milestone 1)</h4></a>
 
-- [ ] 1ING.1. Set up staggered Vercel Cron jobs (once/day) for UK/AU/EU — **depends on 1ADP.3, 1ADP.4**
-- [ ] 1ING.2. Implement idempotency for AU/EU `raw_documents` (UK adapter already supplies a stable API `id` as `source_ref`; confirm whether AU/EU expose a similar stable ID or need a content hash) — **depends on 1ADP.3, 1ADP.4**
+- [ ] 1ADP.3. Build Australia adapter — **blocked on an open sourcing question, not a task dependency.** The design doc classified AU as "Tier 2, structured register, in scope," but investigation found no structured API or bulk dataset: the official register (`aph.gov.au`) is per-MP PDFs, the same shape as the deferred Tier 3 sources (Germany/France/Italy). A third-party aggregator, `openpolitics.au`, appears to have already done the extraction (shares/trusts/gifts/property, searchable by parliament/party/chamber/state) but is currently too slow/unreliable to evaluate (both automated fetches and manual browsing have failed or timed out). Revisit later — verify `openpolitics.au`'s API/export options and licensing (it would be a third-party derivative source, not primary government data, which raises the same licensing-diligence question flagged for the US in the design doc §4), or fall back to reclassifying AU as Tier 3.
 
 <a name="m1-done"><h4>Completed (Milestone 1)</h4></a>
 
@@ -60,6 +59,7 @@ _None._
 - [x] 1SCH.5. Create `ingestion_runs` table
 - [x] 1ADP.1. Define common `SourceAdapter` interface (`fetch()` + `parse()`)
 - [x] 1ADP.2. Build UK adapter (Parliament Interests API, Shareholdings category, threshold-crossing)
+- [x] 1ADP.4. Build EU Commission adapter (Commissioners' Declarations of Interests ZIP, Section III.A.1 Shares only). Added a `currency` column to `disclosure_events` (EU figures are exact values in varying currencies — EUR, CZK confirmed — unlike UK's banded GBP-implicit thresholds). English-language declarations only (`-EN.xml`); confirmed every commissioner has one, flagged as an assumption to recheck if the source ever adds a commissioner without an EN translation.
 
 ---
 
@@ -181,16 +181,11 @@ title: Progress Map
 ---
 graph TD
 
-1ADP.3["`*1ADP.3*<br/>**Adapters**<br/>Australia adapter`"]:::open
-1ADP.4["`*1ADP.4*<br/>**Adapters**<br/>EU Commission adapter`"]:::open
+1ADP.3["`*1ADP.3*<br/>**Adapters**<br/>Australia adapter - sourcing TBD`"]:::blocked
 
-1ING.1["`*1ING.1*<br/>**Ingestion**<br/>UK/AU/EU cron`"]:::blocked
-1ADP.3 --> 1ING.1
-1ADP.4 --> 1ING.1
+1ING.1["`*1ING.1*<br/>**Ingestion**<br/>UK/EU cron`"]:::open
 
-1ING.2["`*1ING.2*<br/>**Ingestion**<br/>UK/AU/EU idempotency`"]:::blocked
-1ADP.3 --> 1ING.2
-1ADP.4 --> 1ING.2
+1ING.2["`*1ING.2*<br/>**Ingestion**<br/>UK/EU idempotency`"]:::open
 
 1ING.3["`*1ING.3*<br/>**Ingestion**<br/>staleness indicator`"]:::open
 
