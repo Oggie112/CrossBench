@@ -7,7 +7,7 @@ description: MVP roadmap for the political disclosure tracker — schema, four-s
 |          | Status        | Next Up                                        | Blocked                          |
 | -------- | ------------- | ----------------------------------------------- | --------------------------------- |
 | **SCH**  | ✅ Milestone 1 schema complete (all 5 tables pushed) | —                                | —                                  |
-| **ADP**  | UK + EU Commission adapters complete | US House/US Senate adapters (unblocked) | AU (open sourcing question — see `1ADP.3`) |
+| **ADP**  | UK + EU Commission + US House adapters complete | US Senate adapter (unblocked) | AU deferred to Tier 3 (PDF/LLM extraction, see `1ADP.3`) |
 | **ING**  | Not started   | Staleness indicator, UK/EU cron, UK/EU idempotency (all unblocked) | — |
 | **RNK**  | Not started   | Seed weights, cluster score, cross-jurisdiction (unblocked) | Signal score (needs populated data) |
 | **FE**   | ✅ Next.js scaffold complete | Supabase TS types, Call/Put badge (unblocked) | Data-backed pages (need RNK/TS types) |
@@ -48,7 +48,7 @@ _None._
 
 <a name="m1-blocked"><h4>Blocked (Milestone 1)</h4></a>
 
-- [ ] 1ADP.3. Build Australia adapter — **blocked on an open sourcing question, not a task dependency.** The design doc classified AU as "Tier 2, structured register, in scope," but investigation found no structured API or bulk dataset: the official register (`aph.gov.au`) is per-MP PDFs, the same shape as the deferred Tier 3 sources (Germany/France/Italy). A third-party aggregator, `openpolitics.au`, appears to have already done the extraction (shares/trusts/gifts/property, searchable by parliament/party/chamber/state) but is currently too slow/unreliable to evaluate (both automated fetches and manual browsing have failed or timed out). Revisit later — verify `openpolitics.au`'s API/export options and licensing (it would be a third-party derivative source, not primary government data, which raises the same licensing-diligence question flagged for the US in the design doc §4), or fall back to reclassifying AU as Tier 3.
+- [ ] 1ADP.3. Build Australia adapter — **reclassified from Tier 2 to Tier 3 (deferred), not a task dependency block.** The design doc's "structured register, in scope" classification was wrong: the official register (`aph.gov.au`) is per-MP PDFs, same shape as the deferred Germany/France/Italy sources. The one candidate third-party aggregator, `openpolitics.au`, requires a paid subscription to access — ruled out for MVP (free-four-source philosophy, and a third-party paid data source raises its own licensing question beyond just the access cost). Treat AU as needing LLM-assisted PDF extraction like the Tier 3 sources; revisit alongside that stretch goal, not before.
 
 <a name="m1-done"><h4>Completed (Milestone 1)</h4></a>
 
@@ -74,18 +74,17 @@ _None._
 
 <a name="m2-todo"><h4>To Do (Milestone 2)</h4></a>
 
-- [ ] 2ADP.5. Build US House adapter (bulk ZIP + PDF form parsing)
 - [ ] 2ADP.6. Build US Senate eFD scraper (fragile, no bulk API — design to degrade gracefully)
+- [ ] 2ING.4. Implement idempotency via real filing ID for US (House side already solved — `DocID` is the `source_ref`; confirm Senate has an equivalent)
 
 <a name="m2-blocked"><h4>Blocked (Milestone 2)</h4></a>
 
-- [ ] 2ING.4. Implement idempotency via real filing ID for US — **depends on 2ADP.5**
 - [ ] 2ING.5. Graceful-degradation handling so Senate scraper failures don't block the rest of the pipeline — **depends on 2ADP.6**
-- [ ] 2ING.6. Add staggered US Vercel Cron job — **depends on 2ADP.5, 2ADP.6**
+- [ ] 2ING.6. Add staggered US Vercel Cron job — **depends on 2ADP.6**
 
 <a name="m2-done"><h4>Completed (Milestone 2)</h4></a>
 
-_None._
+- [x] 2ADP.5. Build US House adapter (bulk ZIP index + per-filing PDF form parsing via coordinate-based table reconstruction). Covers `P`-type (Periodic Transaction Report) filings only. Verified against 295 real 2026 filings plus targeted 2024/2025 samples for options (calls and puts) and bond coverage. `SourceAdapter.fetch()` gained an optional `knownSourceRefs` parameter (non-breaking for UK/EU) so orchestration can skip re-downloading already-stored filings — this source needs one HTTP request per PDF (hundreds per run), unlike UK/EU's single-request fetches.
 
 ---
 
@@ -194,18 +193,14 @@ m1["`**Milestone 1**<br/>Schema & Structured Sources`"]:::mile
 1ING.2 --> m1
 1ING.3 --> m1
 
-2ADP.5["`*2ADP.5*<br/>**Adapters**<br/>US House adapter`"]:::open
-
 2ADP.6["`*2ADP.6*<br/>**Adapters**<br/>US Senate scraper`"]:::open
 
-2ING.4["`*2ING.4*<br/>**Ingestion**<br/>US idempotency (filing ID)`"]:::blocked
-2ADP.5 --> 2ING.4
+2ING.4["`*2ING.4*<br/>**Ingestion**<br/>US idempotency (filing ID)`"]:::open
 
 2ING.5["`*2ING.5*<br/>**Ingestion**<br/>Senate graceful degradation`"]:::blocked
 2ADP.6 --> 2ING.5
 
 2ING.6["`*2ING.6*<br/>**Ingestion**<br/>US cron`"]:::blocked
-2ADP.5 --> 2ING.6
 2ADP.6 --> 2ING.6
 
 m2["`**Milestone 2**<br/>US Ingestion`"]:::mile
@@ -314,7 +309,7 @@ Stretch goals from the design doc (§ "Stretch goals (v2+)"), not yet broken int
 2. Dedicated `/options` page with its own leaderboard
 3. Official and stock profile pages (`/officials/[id]`, `/stocks/[ticker]`)
 4. Policy/regulatory noise tracker (free RSS + keyword tagging, no LLM cost)
-5. Germany/France/Italy tier via LLM-assisted PDF extraction (first real per-use cost — build only after the free four-source version proves the concept)
+5. Germany/France/Italy **+ Australia** tier via LLM-assisted PDF extraction (first real per-use cost — build only after the free four-source version proves the concept). AU joined this tier after investigation found no free structured source — see `1ADP.3`.
 6. Empirical formula re-weighting using free Stooq EOD data once backtest history accumulates
 7. Public API exposure via Supabase's auto-generated REST layer
 
