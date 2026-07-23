@@ -7,8 +7,8 @@ description: MVP roadmap for the political disclosure tracker — schema, four-s
 |          | Status        | Next Up                                        | Blocked                          |
 | -------- | ------------- | ----------------------------------------------- | --------------------------------- |
 | **SCH**  | ✅ Milestone 1 schema complete (all 5 tables pushed) | —                                | —                                  |
-| **ADP**  | UK + EU Commission + US House adapters complete | US Senate adapter (unblocked) | AU deferred to Tier 3 (PDF/LLM extraction, see `1ADP.3`) |
-| **ING**  | Not started   | Staleness indicator, UK/EU cron, UK/EU idempotency (all unblocked) | — |
+| **ADP**  | ✅ All in-scope adapters complete (UK, EU Commission, US House, US Senate) | — | AU deferred to Tier 3 (PDF/LLM extraction, see `1ADP.3`) |
+| **ING**  | Not started   | Staleness indicator, UK/EU/US cron + idempotency (all unblocked) | — |
 | **RNK**  | Not started   | Seed weights, cluster score, cross-jurisdiction (unblocked) | Signal score (needs populated data) |
 | **FE**   | ✅ Next.js scaffold complete | Supabase TS types, Call/Put badge (unblocked) | Data-backed pages (need RNK/TS types) |
 | **BT**   | Not started   | Stooq price ingestion, backtest_positions table (unblocked) | Event-study logic (needs data) |
@@ -74,17 +74,18 @@ _None._
 
 <a name="m2-todo"><h4>To Do (Milestone 2)</h4></a>
 
-- [ ] 2ADP.6. Build US Senate eFD scraper (fragile, no bulk API — design to degrade gracefully)
-- [ ] 2ING.4. Implement idempotency via real filing ID for US (House side already solved — `DocID` is the `source_ref`; confirm Senate has an equivalent)
+- [ ] 2ING.4. Implement idempotency via real filing ID for US (House and Senate both solved — House via `DocID`, Senate via kadoa's own per-transaction `id` — no content hash needed for either)
+- [ ] 2ING.5. Graceful-degradation handling so Senate ingestion failures don't block the rest of the pipeline — worth keeping even though Senate no longer scrapes a fragile source directly; `kadoa`'s feed is still a dependency that could go stale or change shape
+- [ ] 2ING.6. Add staggered US Vercel Cron job
 
 <a name="m2-blocked"><h4>Blocked (Milestone 2)</h4></a>
 
-- [ ] 2ING.5. Graceful-degradation handling so Senate scraper failures don't block the rest of the pipeline — **depends on 2ADP.6**
-- [ ] 2ING.6. Add staggered US Vercel Cron job — **depends on 2ADP.6**
+_None._
 
 <a name="m2-done"><h4>Completed (Milestone 2)</h4></a>
 
 - [x] 2ADP.5. Build US House adapter (bulk ZIP index + per-filing PDF form parsing via coordinate-based table reconstruction). Covers `P`-type (Periodic Transaction Report) filings only. Verified against 295 real 2026 filings plus targeted 2024/2025 samples for options (calls and puts) and bond coverage. `SourceAdapter.fetch()` gained an optional `knownSourceRefs` parameter (non-breaking for UK/EU) so orchestration can skip re-downloading already-stored filings — this source needs one HTTP request per PDF (hundreds per run), unlike UK/EU's single-request fetches.
+- [x] 2ADP.6. Build US Senate adapter — **reclassified from direct-scrape to third-party-aggregator consumption.** `efdsearch.senate.gov` runs Akamai bot protection with an adaptive/behavioral component, confirmed via direct testing: satisfying the static header requirements got 5/5 clean responses in isolation, but completing the real disclaimer→search→paginate flow triggered a block that then also degraded the previously-reliable simple requests. Two historical open-source Senate scrapers (`jeremiak/us-senate-financial-disclosure-scraper`, `timothycarambat/senate-stock-watcher-data`) both used real headless-browser automation and both went dormant years ago (2021, 2022) — unclear whether that's because bot detection tightened since, because running headless-browser infrastructure indefinitely stopped being worth the cost, or both. Considered Playwright but ruled it out given Vercel Hobby tier constraints. Consumes `kadoa-org/congress-trading-monitor`'s `trades.json` (MIT licensed, refreshed daily, no auth required) filtered to `chamber: "senate"`. Verified against all 191 real Senate records in the current snapshot — clean mapping, no thrown errors, though zero options trades exist in the sample so that mapping path is untested against real data.
 
 ---
 
@@ -193,15 +194,11 @@ m1["`**Milestone 1**<br/>Schema & Structured Sources`"]:::mile
 1ING.2 --> m1
 1ING.3 --> m1
 
-2ADP.6["`*2ADP.6*<br/>**Adapters**<br/>US Senate scraper`"]:::open
-
 2ING.4["`*2ING.4*<br/>**Ingestion**<br/>US idempotency (filing ID)`"]:::open
 
-2ING.5["`*2ING.5*<br/>**Ingestion**<br/>Senate graceful degradation`"]:::blocked
-2ADP.6 --> 2ING.5
+2ING.5["`*2ING.5*<br/>**Ingestion**<br/>Senate graceful degradation`"]:::open
 
-2ING.6["`*2ING.6*<br/>**Ingestion**<br/>US cron`"]:::blocked
-2ADP.6 --> 2ING.6
+2ING.6["`*2ING.6*<br/>**Ingestion**<br/>US cron`"]:::open
 
 m2["`**Milestone 2**<br/>US Ingestion`"]:::mile
 2ING.4 --> m2
