@@ -123,7 +123,16 @@ function extractRows(pages: PdfOutput["Pages"]): Row[] {
 			// strings - .trim() doesn't strip control characters, so these
 			// silently survived a plain emptiness check and broke every
 			// regex downstream that expected adjacent, uninterrupted chars.
-			const decoded = decodeURIComponent(text.R.map((r) => r.T).join(""));
+			const raw = text.R.map((r) => r.T).join("");
+			// Some filings contain a stray "%" that isn't valid percent-encoding
+			// (OCR artefacts, special characters in names/addresses) - fall back
+			// to the raw run rather than losing the whole filing to one bad char.
+			let decoded: string;
+			try {
+				decoded = decodeURIComponent(raw);
+			} catch {
+				decoded = raw;
+			}
 			const str = [...decoded].filter((c) => c.charCodeAt(0) !== 0).join("");
 			if (str.trim().length === 0) continue;
 			fragments.push({ x: text.x, y: text.y, str });
