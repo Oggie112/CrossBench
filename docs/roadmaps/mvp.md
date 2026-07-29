@@ -10,7 +10,7 @@ description: MVP roadmap for the political disclosure tracker — schema, four-s
 | **ADP**  | ✅ All in-scope adapters complete (UK, EU Commission, US House, US Senate) | — | AU deferred to Tier 3 (PDF/LLM extraction, see `1ADP.3`) |
 | **ING**  | Not started   | Staleness indicator, UK/EU/US cron + idempotency (all unblocked) | — |
 | **RNK**  | Not started   | Seed weights, cluster score, cross-jurisdiction (unblocked) | Signal score (needs populated data) |
-| **FE**   | ✅ Next.js scaffold complete | Supabase TS types, Call/Put badge (unblocked) | Data-backed pages (need RNK/TS types) |
+| **FE**   | ✅ Next.js scaffold + Supabase client/types wired | Call/Put badge, `/us` feed, `/global` feed (unblocked) | Homepage leaderboard/teasers/Recharts (need RNK) |
 | **BT**   | Not started   | Stooq price ingestion, backtest_positions table (unblocked) | Event-study logic (needs data) |
 
 ---
@@ -127,21 +127,21 @@ _None._
 
 <a name="m4-todo"><h4>To Do (Milestone 4)</h4></a>
 
-- [ ] 4FE.2. Generate Supabase TypeScript types
+- [ ] 4FE.6. Build `/us` filterable feed (chamber, party, committee, ticker, equity/options chip)
+- [ ] 4FE.7. Build `/global` feed (UK/AU/EU threshold crossings, framed as "position changes" not "trades")
 - [ ] 4FE.8. Add ▲Call/▼Put badge component for options
 
 <a name="m4-blocked"><h4>Blocked (Milestone 4)</h4></a>
 
-- [ ] 4FE.3. Build homepage top-5 leaderboard from `mv_signal_scores` — **depends on 3RNK.5, 4FE.2**
+- [ ] 4FE.3. Build homepage top-5 leaderboard from `mv_signal_scores` — **depends on 3RNK.5**
 - [ ] 4FE.4. Build homepage teaser panels ("US activity this week", "Notable positions — UK/AU/EU") — **depends on 4FE.3**
 - [ ] 4FE.5. Build always-visible "notable options activity" homepage list — **depends on 4FE.3**
-- [ ] 4FE.6. Build `/us` filterable feed (chamber, party, committee, ticker, equity/options chip) — **depends on 4FE.2**
-- [ ] 4FE.7. Build `/global` feed (UK/AU/EU threshold crossings, framed as "position changes" not "trades") — **depends on 4FE.2**
 - [ ] 4FE.9. Integrate Recharts (leaderboard bars, score-over-time, sector volume) — **depends on 4FE.3**
 
 <a name="m4-done"><h4>Completed (Milestone 4)</h4></a>
 
 - [x] 4FE.1. Scaffold Next.js (App Router) + TypeScript + Tailwind project
+- [x] 4FE.2. Generate Supabase TypeScript types and wire up typed client (`lib/supabase.ts`, publishable + secret key clients)
 
 ---
 
@@ -229,11 +229,8 @@ m2["`**Milestone 2**<br/>US Ingestion`"]:::mile
 m3["`**Milestone 3**<br/>Ranking Engine`"]:::mile
 3RNK.6 --> m3
 
-4FE.2["`*4FE.2*<br/>**Frontend**<br/>Supabase TS types`"]:::open
-
 4FE.3["`*4FE.3*<br/>**Frontend**<br/>homepage leaderboard`"]:::blocked
 3RNK.5 --> 4FE.3
-4FE.2 --> 4FE.3
 
 4FE.4["`*4FE.4*<br/>**Frontend**<br/>homepage teasers`"]:::blocked
 4FE.3 --> 4FE.4
@@ -241,11 +238,9 @@ m3["`**Milestone 3**<br/>Ranking Engine`"]:::mile
 4FE.5["`*4FE.5*<br/>**Frontend**<br/>options activity list`"]:::blocked
 4FE.3 --> 4FE.5
 
-4FE.6["`*4FE.6*<br/>**Frontend**<br/>/us feed`"]:::blocked
-4FE.2 --> 4FE.6
+4FE.6["`*4FE.6*<br/>**Frontend**<br/>/us feed`"]:::open
 
-4FE.7["`*4FE.7*<br/>**Frontend**<br/>/global feed`"]:::blocked
-4FE.2 --> 4FE.7
+4FE.7["`*4FE.7*<br/>**Frontend**<br/>/global feed`"]:::open
 
 4FE.8["`*4FE.8*<br/>**Frontend**<br/>Call/Put badge`"]:::open
 
