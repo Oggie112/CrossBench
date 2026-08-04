@@ -51,7 +51,14 @@ function mapInstrumentType(assetType: string, assetName: string): InstrumentType
 }
 
 function rawSecurityText(trade: KadoaTrade): string {
-	return trade.ticker ? `${trade.asset_name} (${trade.ticker})` : trade.asset_name;
+	if (!trade.ticker) return trade.asset_name;
+
+	// asset_name already ends with "(TICKER)" for ~40% of real trades (e.g.
+	// ADRs) - verified against the live feed. Appending unconditionally
+	// duplicated it, e.g. "Sodexo ADR (SDXAY) (SDXAY)".
+	const suffix = `(${trade.ticker})`;
+	const alreadyPresent = trade.asset_name.trim().toUpperCase().endsWith(suffix.toUpperCase());
+	return alreadyPresent ? trade.asset_name : `${trade.asset_name} ${suffix}`;
 }
 
 export const usSenateAdapter: SourceAdapter = {
