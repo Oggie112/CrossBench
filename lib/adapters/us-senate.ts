@@ -31,18 +31,20 @@ function mapTransactionType(text: string): TransactionType {
 	throw new Error(`Unrecognized transaction type: "${text}"`);
 }
 
-// Verified against all 191 real Senate records in one snapshot of the data:
-// "Stock" | "Corporate Bond" | "Municipal Security" - no options example
-// observed, so there's no evidence-backed string to map to option_call/
-// option_put. Unrecognized values fall through to "other" rather than
-// guessing at a specific label.
-function mapInstrumentType(assetType: string): InstrumentType {
+// "Stock Option" confirmed against a real filing (Williams Companies, Inc.,
+// filed 2026-07-21) - asset_name embeds "Option Type: Call|Put" text rather
+// than exposing it as its own field, same pattern as the House adapter's
+// descriptionText. Only a Call example has been seen so far; the Put branch
+// is untested against real data.
+function mapInstrumentType(assetType: string, assetName: string): InstrumentType {
 	switch (assetType) {
 		case "Stock":
 			return "equity";
 		case "Corporate Bond":
 		case "Municipal Security":
 			return "bond";
+		case "Stock Option":
+			return /Option Type:\s*Put/i.test(assetName) ? "option_put" : "option_call";
 		default:
 			return "other";
 	}
@@ -90,7 +92,7 @@ export const usSenateAdapter: SourceAdapter = {
 				country: "US",
 				disclosureType: "transaction",
 				transactionType: mapTransactionType(trade.transaction_type),
-				instrumentType: mapInstrumentType(trade.asset_type),
+				instrumentType: mapInstrumentType(trade.asset_type, trade.asset_name),
 				transactionDate: trade.transaction_date,
 				notificationDate: trade.filing_date,
 				amountMin: trade.amount_range_low,
