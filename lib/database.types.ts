@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   graphql_public: {
     Tables: {
@@ -122,6 +122,7 @@ export type Database = {
           id: string
           instrument_type: string | null
           notification_date: string | null
+          official_external_id: string | null
           official_id: string | null
           raw_security_text: string | null
           security_id: string | null
@@ -142,6 +143,7 @@ export type Database = {
           id?: string
           instrument_type?: string | null
           notification_date?: string | null
+          official_external_id?: string | null
           official_id?: string | null
           raw_security_text?: string | null
           security_id?: string | null
@@ -162,6 +164,7 @@ export type Database = {
           id?: string
           instrument_type?: string | null
           notification_date?: string | null
+          official_external_id?: string | null
           official_id?: string | null
           raw_security_text?: string | null
           security_id?: string | null

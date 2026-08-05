@@ -89,6 +89,7 @@ export async function runIngestion(adapter: SourceAdapter): Promise<IngestionRes
 						transaction_type: d.transactionType ?? null,
 						instrument_type: d.instrumentType ?? "equity",
 						raw_security_text: d.rawSecurityText,
+						official_external_id: d.officialExternalId,
 						transaction_date: d.transactionDate ?? null,
 						notification_date: d.notificationDate ?? null,
 						amount_min: d.amountMin ?? null,
