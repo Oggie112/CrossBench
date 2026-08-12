@@ -3,6 +3,7 @@ import JSZip from "jszip";
 import PDFParser from "pdf2json";
 import type { Output as PdfOutput } from "pdf2json";
 import type { InstrumentType, ParsedDisclosure, RawDocument, SourceAdapter, TransactionType } from "./source-adapter";
+import { nameSlug } from "./name-slug";
 
 const YEAR = new Date().getFullYear();
 const INDEX_ZIP_URL = `https://disclosures-clerk.house.gov/public_disc/financial-pdfs/${YEAR}FD.zip`;
@@ -93,15 +94,6 @@ function parseIndex(xml: string): MemberEntry[] {
 	const members = doc.FinancialDisclosure?.Member;
 	if (!members) return [];
 	return Array.isArray(members) ? members : [members];
-}
-
-function nameSlug(member: { last: string; first: string }): string {
-	return `${member.first}-${member.last}`
-		.normalize("NFD")
-		.replace(/[̀-ͯ]/g, "")
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/(^-|-$)/g, "");
 }
 
 function parsePdfBuffer(buffer: Buffer): Promise<PdfOutput> {
