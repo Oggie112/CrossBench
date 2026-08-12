@@ -1,4 +1,5 @@
 import type { InstrumentType, ParsedDisclosure, RawDocument, SourceAdapter, TransactionType } from "./source-adapter";
+import { nameSlug } from "./name-slug";
 
 // Senate trades aren't fetched from efdsearch.senate.gov directly - that site
 // runs adaptive/behavioral bot protection that a plain adapter can't reliably
@@ -22,6 +23,17 @@ interface KadoaTrade {
 	filer_id: string;
 	filer_name: string;
 	chamber: string;
+}
+
+// kadoa's own filer_id slug is undocumented and internally inconsistent
+// (e.g. "senate_a_mitchell" vs "senate_shelleym_capito" - not a stable
+// first/last split) - reversing it reliably isn't possible. filer_name is a
+// clean display name instead; splitting on first/last word (dropping any
+// middle name/initial) mirrors what the House adapter's PDF-parsed
+// first/last fields already do, so both adapters produce the same slug format.
+function splitFullName(fullName: string): { first: string; last: string } {
+	const parts = fullName.trim().split(/\s+/);
+	return { first: parts[0], last: parts[parts.length - 1] };
 }
 
 function mapTransactionType(text: string): TransactionType {
@@ -94,7 +106,7 @@ export const usSenateAdapter: SourceAdapter = {
 
 		return [
 			{
-				officialExternalId: trade.filer_id,
+				officialExternalId: nameSlug(splitFullName(trade.filer_name)),
 				rawSecurityText: rawSecurityText(trade),
 				country: "US",
 				disclosureType: "transaction",

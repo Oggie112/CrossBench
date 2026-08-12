@@ -69,18 +69,21 @@ export type Database = {
         Row: {
           chamber: string
           country: string
+          external_ids: Json | null
           id: string
           name: string
         }
         Insert: {
           chamber: string
           country: string
+          external_ids?: Json | null
           id?: string
           name: string
         }
         Update: {
           chamber?: string
           country?: string
+          external_ids?: Json | null
           id?: string
           name?: string
         }

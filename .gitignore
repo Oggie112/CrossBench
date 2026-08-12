@@ -24,3 +24,6 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
+
+# identity-seeding script output
+lib/identity/*.md

@@ -78,6 +78,8 @@ async function upsertOfficial(name: string, memberInfo: NonNullable<CommitteeMem
 }
 
 async function upsertCommittee(committee: CommitteeListItem): Promise<string> {
+	const externalIds = { uk_committee_id: String(committee.id) };
+
 	const { data: existing } = await supabaseAdmin
 		.from("committees")
 		.select("id")
@@ -85,11 +87,15 @@ async function upsertCommittee(committee: CommitteeListItem): Promise<string> {
 		.eq("name", committee.name)
 		.maybeSingle();
 
-	if (existing) return existing.id;
+	if (existing) {
+		// Backfills external_ids on committees seeded before this column existed.
+		await supabaseAdmin.from("committees").update({ external_ids: externalIds }).eq("id", existing.id);
+		return existing.id;
+	}
 
 	const { data: created, error } = await supabaseAdmin
 		.from("committees")
-		.insert({ name: committee.name, country: "UK", chamber: committee.house })
+		.insert({ name: committee.name, country: "UK", chamber: committee.house, external_ids: externalIds })
 		.select("id")
 		.single();
 
