@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed:uk": "tsx --env-file=.env.local lib/identity/seed-uk.ts"
+    "seed:uk": "tsx --env-file=.env.local lib/identity/seed-uk.ts",
+    "seed:us": "tsx --env-file=.env.local lib/identity/seed-us.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
