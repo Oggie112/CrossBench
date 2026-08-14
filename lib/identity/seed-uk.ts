@@ -1,6 +1,27 @@
 import { supabaseAdmin } from "../supabase";
 
 const API_BASE = "https://committees-api.parliament.uk/api";
+const MEMBERS_API_BASE = "https://members-api.parliament.uk/api";
+const MEMBERS_PAGE_SIZE = 100;
+
+interface OfficialRecord {
+	mnisId: number;
+	fullName: string;
+	party: string | null;
+	house: "Commons" | "Lords";
+}
+
+interface MemberSearchResult {
+	items: {
+		value: {
+			id: number;
+			nameDisplayAs: string;
+			latestParty: { name: string } | null;
+			latestHouseMembership: { house: 1 | 2 };
+		};
+	}[];
+	totalResults: number;
+}
 
 interface CommitteeListItem {
 	id: number;
@@ -28,6 +49,32 @@ interface CommitteeMember {
 	} | null;
 }
 
+async function fetchCurrentRoster(house: 1 | 2): Promise<OfficialRecord[]> {
+	const members: OfficialRecord[] = [];
+	let skip = 0;
+
+	while (true) {
+		const url = `${MEMBERS_API_BASE}/Members/Search?House=${house}&IsCurrentMember=true&Skip=${skip}&Take=${MEMBERS_PAGE_SIZE}`;
+		const response = await fetch(url, { headers: { Accept: "application/json" } });
+		if (!response.ok) throw new Error(`Members search fetch failed: ${response.status}`);
+
+		const page: MemberSearchResult = await response.json();
+		for (const item of page.items) {
+			members.push({
+				mnisId: item.value.id,
+				fullName: item.value.nameDisplayAs,
+				party: item.value.latestParty?.name ?? null,
+				house: item.value.latestHouseMembership.house === 1 ? "Commons" : "Lords",
+			});
+		}
+
+		skip += page.items.length;
+		if (page.items.length === 0 || skip >= page.totalResults) break;
+	}
+
+	return members;
+}
+
 async function fetchSelectCommittees(): Promise<CommitteeListItem[]> {
 	const response = await fetch(`${API_BASE}/Committees?take=300`, {
 		headers: { Accept: "application/json" },
@@ -49,8 +96,8 @@ async function fetchCommitteeMembers(committeeId: number): Promise<CommitteeMemb
 	return data.items ?? data;
 }
 
-async function upsertOfficial(name: string, memberInfo: NonNullable<CommitteeMember["memberInfo"]>): Promise<string> {
-	const mnisId = String(memberInfo.mnisId);
+async function upsertOfficial(official: OfficialRecord): Promise<string> {
+	const mnisId = String(official.mnisId);
 
 	const { data: existing } = await supabaseAdmin
 		.from("officials")
@@ -64,17 +111,32 @@ async function upsertOfficial(name: string, memberInfo: NonNullable<CommitteeMem
 	const { data: created, error } = await supabaseAdmin
 		.from("officials")
 		.insert({
-			full_name: name,
+			full_name: official.fullName,
 			country: "UK",
-			chamber: memberInfo.house,
-			party: memberInfo.party,
+			chamber: official.house,
+			party: official.party,
 			external_ids: { uk_mnis_id: mnisId },
 		})
 		.select("id")
 		.single();
 
-	if (error || !created) throw new Error(`Failed to create official ${name}: ${error?.message}`);
+	if (error || !created) throw new Error(`Failed to create official ${official.fullName}: ${error?.message}`);
 	return created.id;
+}
+
+// Seeds every current MP and Lord, independent of committee membership - the
+// Committees API only surfaces the subset who sit on a Select Committee
+// (most backbenchers don't), so relying on it alone left most of the roster
+// unable to ever match a disclosure. Members API uses the same mnisId scheme
+// as the Committees and Interests APIs, so upsertOfficial's existing
+// upsert-by-mnisId logic needs no changes - committee crawling below just
+// hits the "already exists" branch for everyone once this has run first.
+async function seedRoster(): Promise<number> {
+	const [commons, lords] = await Promise.all([fetchCurrentRoster(1), fetchCurrentRoster(2)]);
+	const roster = [...commons, ...lords];
+
+	for (const official of roster) await upsertOfficial(official);
+	return roster.length;
 }
 
 async function upsertCommittee(committee: CommitteeListItem): Promise<string> {
@@ -139,7 +201,12 @@ async function seedCommittees(): Promise<{ officialIds: Set<string>; membershipC
 			const activeRoles = member.roles.filter((r) => r.endDate === null);
 			if (activeRoles.length === 0) continue;
 
-			const officialId = await upsertOfficial(member.name, member.memberInfo);
+			const officialId = await upsertOfficial({
+				mnisId: member.memberInfo.mnisId,
+				fullName: member.name,
+				party: member.memberInfo.party,
+				house: member.memberInfo.house,
+			});
 			officialIds.add(officialId);
 
 			for (const role of activeRoles) {
@@ -177,9 +244,13 @@ async function backfillDisclosureEvents(): Promise<number> {
 }
 
 async function main() {
+	console.log("Seeding full current roster (Commons + Lords)...");
+	const rosterCount = await seedRoster();
+	console.log(`${rosterCount} current members seeded`);
+
 	console.log("Seeding UK Select committees and current membership...");
 	const { officialIds, membershipCount } = await seedCommittees();
-	console.log(`${officialIds.size} unique officials, ${membershipCount} membership rows`);
+	console.log(`${officialIds.size} unique officials on a Select Committee, ${membershipCount} membership rows`);
 
 	console.log("Backfilling disclosure_events.official_id...");
 	const updated = await backfillDisclosureEvents();
