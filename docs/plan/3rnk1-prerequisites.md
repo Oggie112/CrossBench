@@ -34,20 +34,21 @@ Built `lib/securities/yahoo-finance.ts`. The originally planned endpoint didn't 
 
 The licensing/ToS caveat from before still stands (Yahoo's terms restrict automated access and redistribution) — treated the same as the design doc's existing unresolved **US commercial-use** and **AU/EU licensing** questions, flagged not blocking, revisit before monetization. Not reusing `Peez49/Informed-Trading`'s CSVs directly (no LICENSE file) — methodology validation only, per `docs/learnings.md`.
 
-## 3. Securities identity resolution (new)
+## 3. Securities identity resolution — resolved
 
-Nothing currently exists here — `securities` has 0 rows, and no adapter has ever written to it or to `disclosure_events.security_id`. Format varies significantly per source, checked against real rows:
+Built `lib/securities/parse-security-text.ts` + `lib/securities/resolve-securities.ts`. Turned out **one shared parser covers all four sources**, not per-source variants as originally assumed — House, Senate, EU, and UK all reduce to "extract a trailing `(CODE)` group if one exists, else fall back to the full cleaned text as a name." EU/UK naturally degrade to the name-only path since they never have a trailing code at all; Senate's heavy embedded whitespace/newlines just need collapsing first, then the same end-anchored regex finds the real ticker regardless of Option/Rate-Coupon noise in between.
 
-- **US House**: mostly clean, ticker present in parens (`"Netflix, Inc. - Common Stock (NFLX)"`) — but non-equity instruments (Treasury notes, bonds) have a CUSIP-like code instead of a ticker.
-- **US Senate**: inconsistent — ticker sometimes present, sometimes only a company name plus bond rate/maturity details, and exchange transactions pack two securities into one string (`"BERY - Berry Global Group, Inc. (Exchanged) ... Amcor plc Ordinary Shares (Received) (AMCR)"`).
-- **EU**: pure free-text company/entity names, sometimes non-English, sometimes with editorial asides — no ticker ever.
-- **UK**: now known from step 0's backfill — pure free-text company names, same shape as EU (`"Lockhouse Systems Limited"`, `"AccuRx Ltd"`), no ticker ever. Worse hit-rate expected than EU: these read like small/private UK companies rather than listed ones, and Yahoo Finance only covers publicly traded securities — confirmed directly, `lookupByName("Lockhouse Systems Limited")` correctly returns no match because there is genuinely nothing to match, not because of a parsing gap.
+Real gaps designed around and confirmed on live data:
+- **Ticker vs. CUSIP distinguished by shape** — 1-6 letters vs. 9-char alphanumeric-with-digits (`"US Treasury Note...(91282CGH8)"` → CUSIP, not ticker).
+- **Case-only variants must dedup, substantive differences must not** — `"Madison Conn GO BD..."` / `"Madison Conn Go Bd..."` (same bond) fold to one security via a case/whitespace-normalized `name_alias`; `"US TSY NOTE 02/15/34"` / `"...02/15/35"` (different maturities) correctly stay distinct, since normalization never touches dates or coupon %.
+- **Matching goes through the existing `security_identifiers` table** (`ticker`/`cusip`/`name_alias`, globally unique per type+value) rather than `securities.isin`/`primary_ticker` directly — already schema-shaped for exactly this, including the free-text case via `name_alias`.
+- **Multi-leg exchanges only capture one leg** — `"BERY - ... (Exchanged) ... Amcor... (Received) (AMCR)"` resolves to `AMCR` only, `BERY` is lost. Deliberate: a two-security splitter for a pattern seen once in 120 sampled rows wasn't worth the complexity: full original text is preserved in `canonical_name` either way, so nothing is silently hidden, just not structurally split.
 
-Build a per-source parser extracting `{tickerOrIsin, canonicalName}`, upsert into `securities`, backfill `disclosure_events.security_id` — same identity-seeding shape as `seed-uk.ts`/`seed-us.ts`/`seed-eu.ts`, new domain (securities instead of officials).
+Ran for real: all 3,996 `disclosure_events` resolved (0 remaining `security_id IS NULL`), 1,538 distinct securities created. Verified against real data, not just row counts: 48 separate House/Senate disclosures for AAPL all resolve to one `securities` row via the `ticker` identifier; the Madison Conn bond's two case variants resolve to one row via `name_alias`.
 
 ## 4. Securities sector classification
 
-Using the step 2 wrapper: `lookupByTicker` for US-sourced rows (ticker/CUSIP), `lookupByName` for EU and UK rows (no ticker in either, confirmed same shape for both in step 3). `lookupByName`'s legal-suffix-stripping retry recovers some real matches that a naive exact-string search would miss (e.g. `"Erste Group AG"` → `"Erste Group Bank AG"`), but a genuine no-coverage floor is expected and confirmed, not a bug — mostly private UK companies and some smaller/delisted EU ones. Populate `securities.sector`; leave unmatched rows null rather than force a manual override table for every miss, since "no public sector data exists" is often the honest answer, not a gap to fill.
+Now operates over the 1,538 real `securities` rows from step 3, not raw disclosure text directly: `lookupByTicker(primary_ticker)` where one exists, `lookupByName(canonical_name)` otherwise. Using the step 2 wrapper. `lookupByName`'s legal-suffix-stripping retry recovers some real matches that a naive exact-string search would miss (e.g. `"Erste Group AG"` → `"Erste Group Bank AG"`), but a genuine no-coverage floor is expected and confirmed, not a bug — mostly private UK companies and some smaller/delisted EU ones. Populate `securities.sector`; leave unmatched rows null rather than force a manual override table for every miss, since "no public sector data exists" is often the honest answer, not a gap to fill.
 
 ## 5. `committee_sector_relevance` weight seeding
 
@@ -69,7 +70,7 @@ graph TD
   s0["0. Fix UK ingestion (resolved)"]:::done
   s1["1. Sector taxonomy (decided)"]:::done
   s2["2. Yahoo Finance wrapper (resolved)"]:::done
-  s3["3. Securities identity resolution"]:::open
+  s3["3. Securities identity resolution (resolved)"]:::done
   s4["4. Securities sector classification"]:::open
   s5["5. committee_sector_relevance seeding"]:::open
   s6["6. EU portfolio path"]:::open
