@@ -9,7 +9,8 @@
     "lint": "eslint",
     "seed:uk": "tsx --env-file=.env.local lib/identity/seed-uk.ts",
     "seed:us": "tsx --env-file=.env.local lib/identity/seed-us.ts",
-    "seed:eu": "tsx --env-file=.env.local lib/identity/seed-eu.ts"
+    "seed:eu": "tsx --env-file=.env.local lib/identity/seed-eu.ts",
+    "resolve:securities": "tsx --env-file=.env.local lib/securities/resolve-securities.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
