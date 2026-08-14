@@ -101,7 +101,7 @@ _None._
 
 <a name="m3-todo"><h4>To Do (Milestone 3)</h4></a>
 
-- [ ] 3RNK.1. Seed `committee_sector_relevance` weights
+- [ ] 3RNK.1. Seed `committee_sector_relevance` weights — **scope is larger than this one line suggests; wasn't fully fleshed out when written.** `seed-uk.ts`/`seed-us.ts` already seed the `committees` and `official_committee_memberships` tables this depends on for UK/US. `seed-eu.ts` (new) seeds EU officials directly off the Commissioners' DOI documents — simpler than UK/US since matching is exact-slug rather than fuzzy — but EU Commissioners have no committee equivalent, so it doesn't give EU a path into sector relevance on its own. Scoping the actual weight-seeding also surfaced that `securities` has zero rows in production and nothing populates `disclosure_events.security_id` or a sector per security — prerequisites this line didn't account for. See [3RNK.1 Prerequisites](../plan/3rnk1-prerequisites.md) for the full breakdown and dependency order.
 - [ ] 3RNK.2. Build `mv_trade_size_score` materialized view — unblocked now that `1ING.2`/`2ING.4` (idempotency) are done and real disclosure data exists
 - [ ] 3RNK.3. Build `mv_cluster_score` materialized view (90-day distinct officials)
 - [ ] 3RNK.4. Build cross-jurisdiction `country_count` subquery
@@ -269,6 +269,7 @@ classDef mile fill:#9ff;
 <a name="links"><h2>Links</h2></a>
 
 - [MVP Design Document](../political-disclosure-tracker-mvp-design.md)
+- [3RNK.1 Prerequisites Plan](../plan/3rnk1-prerequisites.md)
 
 ---
 

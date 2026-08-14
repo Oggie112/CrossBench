@@ -2,7 +2,7 @@ import { XMLParser } from "fast-xml-parser";
 import JSZip from "jszip";
 import type { ParsedDisclosure, RawDocument, SourceAdapter } from "./source-adapter";
 
-const ZIP_URL =
+export const ZIP_URL =
 	"https://commission.europa.eu/document/download/56140a17-d787-4fb1-b374-63b57e9d72f0_en?filename=Machine-Readable-DOIs.zip";
 const SHARES_ANCHOR = "III.A.1";
 const SHARES_CONFIRM_WINDOW = 50;
@@ -14,7 +14,7 @@ interface EuRawContent {
 	commissionerSlug: string;
 }
 
-function commissionerSlug(entryName: string): string {
+export function commissionerSlug(entryName: string): string {
 	const base = entryName
 		.split("/")
 		.pop()!
@@ -42,6 +42,23 @@ function flattenWithOffsets(xml: string): { text: string; offsets: number[] } {
 		}
 	}
 	return { text: textChars.join(""), offsets };
+}
+
+// The form's cover page states the declarant's name in an explicit "Full
+// Name" field - more reliable than trusting the filename to stay
+// well-formed (accents, spacing) across every commissioner's document.
+export function extractFullName(xml: string): string | null {
+	const { text } = flattenWithOffsets(xml);
+	const anchor = "Full Name";
+	const anchorIndex = text.indexOf(anchor);
+	if (anchorIndex === -1) return null;
+
+	const afterAnchor = text.slice(anchorIndex + anchor.length);
+	const languageIndex = afterAnchor.indexOf("Language");
+	if (languageIndex === -1) return null;
+
+	const name = afterAnchor.slice(0, languageIndex).replace(/^[:\s]+/, "").trim();
+	return name || null;
 }
 
 // Assumes tables in this form template never nest - true for this fixed
@@ -148,6 +165,11 @@ function parseAmount(raw: string): number | null {
 	return Number.isFinite(value) ? value : null;
 }
 
+export function isDoiEntry(entryName: string): boolean {
+	if (!/-EN(\s\(\d+\))?\.xml$/i.test(entryName)) return false;
+	return !entryName.includes("Test Form");
+}
+
 export const euAdapter: SourceAdapter = {
 	sourceName: "eu_commission_doi",
 	country: "EU",
@@ -169,8 +191,7 @@ export const euAdapter: SourceAdapter = {
 		const documents: RawDocument[] = [];
 		for (const [entryName, entry] of Object.entries(zip.files)) {
 			if (entry.dir) continue;
-			if (!/-EN(\s\(\d+\))?\.xml$/i.test(entryName)) continue;
-			if (entryName.includes("Test Form")) continue;
+			if (!isDoiEntry(entryName)) continue;
 
 			const xml = await entry.async("string");
 			const slug = commissionerSlug(entryName);
