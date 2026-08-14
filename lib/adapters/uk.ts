@@ -2,9 +2,14 @@ import type { ParsedDisclosure, RawDocument, SourceAdapter } from "./source-adap
 
 const API_BASE = "https://interests-api.parliament.uk/api/v1";
 const SHAREHOLDINGS_CATEGORY_ID = 8;
-// UK shareholding disclosures publish on roughly a 28-day cadence; this gives
-// margin over that plus a few days of cron downtime tolerance.
-const FETCH_WINDOW_DAYS = 40;
+// The 28-day figure is the registration deadline, not the actual publishing
+// cadence - real Shareholdings-category volume is much sparser (4 published
+// in the first 7.5 months of 2026, confirmed against the live API), so a
+// short trailing window risks a record ageing out before the next cron run
+// picks it up, with no backfill path once it does. 90 days gives real margin
+// for that; cost is negligible since Take/Skip pagination scales with actual
+// result count, not window size.
+const FETCH_WINDOW_DAYS = 90;
 const PAGE_SIZE = 20;
 
 interface InterestField {
