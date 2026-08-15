@@ -46,9 +46,13 @@ Real gaps designed around and confirmed on live data:
 
 Ran for real: all 3,996 `disclosure_events` resolved (0 remaining `security_id IS NULL`), 1,538 distinct securities created. Verified against real data, not just row counts: 48 separate House/Senate disclosures for AAPL all resolve to one `securities` row via the `ticker` identifier; the Madison Conn bond's two case variants resolve to one row via `name_alias`.
 
-## 4. Securities sector classification
+## 4. Securities sector classification — resolved
 
-Now operates over the 1,538 real `securities` rows from step 3, not raw disclosure text directly: `lookupByTicker(primary_ticker)` where one exists, `lookupByName(canonical_name)` otherwise. Using the step 2 wrapper. `lookupByName`'s legal-suffix-stripping retry recovers some real matches that a naive exact-string search would miss (e.g. `"Erste Group AG"` → `"Erste Group Bank AG"`), but a genuine no-coverage floor is expected and confirmed, not a bug — mostly private UK companies and some smaller/delisted EU ones. Populate `securities.sector`; leave unmatched rows null rather than force a manual override table for every miss, since "no public sector data exists" is often the honest answer, not a gap to fill.
+Built `lib/securities/classify-sectors.ts`, operating over the 1,538 real `securities` rows from step 3: `lookupByTicker(primary_ticker)` where one exists, `lookupByName(canonical_name)` otherwise. Added an `industry` column alongside `sector` on `securities` (migration `20260815120516_securities_industry.sql`) while in here — the wrapper already returns it for free on every lookup, per the Peez49 learnings' "cheap to capture now, expensive to backfill later" point.
+
+**First run confirmed the wrapper's reliability caveat directly, not hypothetically**: a raw `ECONNRESET` partway through (482/1,538 done) from hammering the search endpoint with no pacing — not a clean HTTP error, an unofficial endpoint behaving exactly as flaky as expected. Fixed properly rather than just retrying blind: retry-with-backoff added to `yahoo-finance.ts`'s `search()` (belongs in the wrapper — general resilience to transient failures), a 200ms pace between requests added to `classify-sectors.ts`'s loop (belongs in the bulk caller — only bulk callers need to be polite). Re-run completed cleanly with no further failures.
+
+Final result: **1,101/1,538 classified (72%), 437 left `null`** — verified as the expected shape, not noise: sensible spread across all 11 Yahoo sectors (Industrials 190, Financial Services 150, Technology 149, down to Utilities 20), Netflix and Erste Group Bank AG both correctly classified, and every sampled UK private company (`Lockhouse Systems Limited`, `AccuRx Ltd`, etc.) and every US Treasury bond correctly left `null` — Treasuries don't have a meaningful equity sector to begin with, so this is the honest answer, not a gap.
 
 ## 5. `committee_sector_relevance` weight seeding
 
@@ -71,7 +75,7 @@ graph TD
   s1["1. Sector taxonomy (decided)"]:::done
   s2["2. Yahoo Finance wrapper (resolved)"]:::done
   s3["3. Securities identity resolution (resolved)"]:::done
-  s4["4. Securities sector classification"]:::open
+  s4["4. Securities sector classification (resolved)"]:::done
   s5["5. committee_sector_relevance seeding"]:::open
   s6["6. EU portfolio path"]:::open
   done3rnk["3RNK.1 complete"]:::mile
