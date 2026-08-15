@@ -362,6 +362,7 @@ export type Database = {
         Row: {
           canonical_name: string
           id: string
+          industry: string | null
           isin: string | null
           primary_exchange: string | null
           primary_ticker: string | null
@@ -370,6 +371,7 @@ export type Database = {
         Insert: {
           canonical_name: string
           id?: string
+          industry?: string | null
           isin?: string | null
           primary_exchange?: string | null
           primary_ticker?: string | null
@@ -378,6 +380,7 @@ export type Database = {
         Update: {
           canonical_name?: string
           id?: string
+          industry?: string | null
           isin?: string | null
           primary_exchange?: string | null
           primary_ticker?: string | null

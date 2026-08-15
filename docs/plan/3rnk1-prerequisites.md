@@ -24,28 +24,35 @@ Separate, unfixed observation from the same investigation: EU's `ingestion_runs`
 
 Use **Yahoo Finance's own sector scheme**, not GICS: `Technology, Financial Services, Healthcare, Consumer Cyclical, Consumer Defensive, Energy, Utilities, Real Estate, Basic Materials, Industrials, Communication Services`. Chosen because step 2 sources sector data from Yahoo Finance directly — adopting GICS instead would mean maintaining a permanent translation layer between Yahoo's categories and GICS's for no benefit, since nothing else in the schema assumes GICS today. This is the vocabulary `securities.sector`, `committee_sector_relevance.sector`, and `portfolio_sector_relevance.sector` must all agree on.
 
-## 2. Yahoo Finance lookup wrapper
+## 2. Yahoo Finance lookup wrapper — resolved
 
-Build our own thin wrapper against Yahoo Finance's unofficial `quoteSummary` endpoint (`query1.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules=assetProfile`) — free, no key, plain `fetch`, same shape as every other adapter in this codebase. Two open risks, treated the same way the design doc already treats the unresolved **US commercial-use** and **AU/EU licensing** questions — flagged, not blocking, revisit before monetization:
-- **Licensing/ToS**: Yahoo's terms restrict automated access and redistribution of their data.
-- **Reliability**: this is the same unofficial endpoint the wider `yfinance` Python community has repeatedly had break underneath them. Not something to build time-critical ingestion on the way the House Clerk ZIP or UK's official API are — treat as a periodic/manual backfill job, not part of the daily cron.
+Built `lib/securities/yahoo-finance.ts`. The originally planned endpoint didn't survive contact with reality:
 
-Not reusing `Peez49/Informed-Trading`'s pre-built CSVs (`stock_industry_classifications.csv`, `Jurisdictional_Matrix_Final.csv`) — that repo has no LICENSE file, so default copyright applies. Useful as methodology validation only (confirms both the sector-per-ticker approach and the committee-jurisdiction-mapping approach are solved problems, and that one worthwhile idea — flagging general-jurisdiction committees like House Appropriations so they don't dilute every sector — is worth carrying into step 5).
+- **`quoteSummary`/`assetProfile` (what `yfinance` wraps) now rejects anonymous requests** — confirmed directly, a plain `fetch` returns `{"error":{"code":"Unauthorized","description":"Invalid Crumb"}}`. This is the exact reliability risk flagged as hypothetical when this step was first scoped, now confirmed real and current, not just a theoretical worry about the wider `yfinance` community's experience.
+- **Pivoted to the `v1/finance/search` endpoint instead** — no crumb required, and it returns `sector`/`industry` inline on `EQUITY`-type results, covering both the ticker-lookup and company-name-lookup cases with one endpoint instead of two. Two exported functions: `lookupByTicker(ticker)` and `lookupByName(companyName)`.
+- **Verified against five real cases**, not just the happy path: `NFLX` (clean ticker match), `AMZA` (an ETF — correctly returns `null`, since ETFs have no `sector`/`industry` fields at all, matching Peez49's own manual "Broad Market / ETF" override category), `"Erste Group AG"` (a real EU disclosure string — initial search returns nothing, because Yahoo's stored name is `"Erste Group Bank AG"`; `lookupByName` retries with the legal suffix stripped and correctly resolves to `EBS.VI`), `"Lockhouse Systems Limited"` (one of the real UK disclosures — genuinely private, correctly `null`), `"Banca Popolare di Bari"` (a real, non-private Italian bank with no Yahoo coverage — correctly `null`, distinct from the private-company case but same result, confirming a "no coverage" bucket is unavoidable and not a bug to chase).
 
-## 3. Securities identity resolution (new)
+The licensing/ToS caveat from before still stands (Yahoo's terms restrict automated access and redistribution) — treated the same as the design doc's existing unresolved **US commercial-use** and **AU/EU licensing** questions, flagged not blocking, revisit before monetization. Not reusing `Peez49/Informed-Trading`'s CSVs directly (no LICENSE file) — methodology validation only, per `docs/learnings.md`.
 
-Nothing currently exists here — `securities` has 0 rows, and no adapter has ever written to it or to `disclosure_events.security_id`. Format varies significantly per source, checked against real rows:
+## 3. Securities identity resolution — resolved
 
-- **US House**: mostly clean, ticker present in parens (`"Netflix, Inc. - Common Stock (NFLX)"`) — but non-equity instruments (Treasury notes, bonds) have a CUSIP-like code instead of a ticker.
-- **US Senate**: inconsistent — ticker sometimes present, sometimes only a company name plus bond rate/maturity details, and exchange transactions pack two securities into one string (`"BERY - Berry Global Group, Inc. (Exchanged) ... Amcor plc Ordinary Shares (Received) (AMCR)"`).
-- **EU**: pure free-text company/entity names, sometimes non-English, sometimes with editorial asides — no ticker ever.
-- **UK**: unknown until step 0 produces real data to inspect.
+Built `lib/securities/parse-security-text.ts` + `lib/securities/resolve-securities.ts`. Turned out **one shared parser covers all four sources**, not per-source variants as originally assumed — House, Senate, EU, and UK all reduce to "extract a trailing `(CODE)` group if one exists, else fall back to the full cleaned text as a name." EU/UK naturally degrade to the name-only path since they never have a trailing code at all; Senate's heavy embedded whitespace/newlines just need collapsing first, then the same end-anchored regex finds the real ticker regardless of Option/Rate-Coupon noise in between.
 
-Build a per-source parser extracting `{tickerOrIsin, canonicalName}`, upsert into `securities`, backfill `disclosure_events.security_id` — same identity-seeding shape as `seed-uk.ts`/`seed-us.ts`/`seed-eu.ts`, new domain (securities instead of officials).
+Real gaps designed around and confirmed on live data:
+- **Ticker vs. CUSIP distinguished by shape** — 1-6 letters vs. 9-char alphanumeric-with-digits (`"US Treasury Note...(91282CGH8)"` → CUSIP, not ticker).
+- **Case-only variants must dedup, substantive differences must not** — `"Madison Conn GO BD..."` / `"Madison Conn Go Bd..."` (same bond) fold to one security via a case/whitespace-normalized `name_alias`; `"US TSY NOTE 02/15/34"` / `"...02/15/35"` (different maturities) correctly stay distinct, since normalization never touches dates or coupon %.
+- **Matching goes through the existing `security_identifiers` table** (`ticker`/`cusip`/`name_alias`, globally unique per type+value) rather than `securities.isin`/`primary_ticker` directly — already schema-shaped for exactly this, including the free-text case via `name_alias`.
+- **Multi-leg exchanges only capture one leg** — `"BERY - ... (Exchanged) ... Amcor... (Received) (AMCR)"` resolves to `AMCR` only, `BERY` is lost. Deliberate: a two-security splitter for a pattern seen once in 120 sampled rows wasn't worth the complexity: full original text is preserved in `canonical_name` either way, so nothing is silently hidden, just not structurally split.
 
-## 4. Securities sector classification
+Ran for real: all 3,996 `disclosure_events` resolved (0 remaining `security_id IS NULL`), 1,538 distinct securities created. Verified against real data, not just row counts: 48 separate House/Senate disclosures for AAPL all resolve to one `securities` row via the `ticker` identifier; the Madison Conn bond's two case variants resolve to one row via `name_alias`.
 
-Using the step 2 wrapper: ticker/ISIN → sector for US-sourced rows. EU rows have no ticker, so company-name lookup (Yahoo's `v1/finance/search` or similar) will have a lower hit rate — likely needs a small hand-authored override table given it's a bounded, small universe of companies. Populate `securities.sector`.
+## 4. Securities sector classification — resolved
+
+Built `lib/securities/classify-sectors.ts`, operating over the 1,538 real `securities` rows from step 3: `lookupByTicker(primary_ticker)` where one exists, `lookupByName(canonical_name)` otherwise. Added an `industry` column alongside `sector` on `securities` (migration `20260815120516_securities_industry.sql`) while in here — the wrapper already returns it for free on every lookup, per the Peez49 learnings' "cheap to capture now, expensive to backfill later" point.
+
+**First run confirmed the wrapper's reliability caveat directly, not hypothetically**: a raw `ECONNRESET` partway through (482/1,538 done) from hammering the search endpoint with no pacing — not a clean HTTP error, an unofficial endpoint behaving exactly as flaky as expected. Fixed properly rather than just retrying blind: retry-with-backoff added to `yahoo-finance.ts`'s `search()` (belongs in the wrapper — general resilience to transient failures), a 200ms pace between requests added to `classify-sectors.ts`'s loop (belongs in the bulk caller — only bulk callers need to be polite). Re-run completed cleanly with no further failures.
+
+Final result: **1,101/1,538 classified (72%), 437 left `null`** — verified as the expected shape, not noise: sensible spread across all 11 Yahoo sectors (Industrials 190, Financial Services 150, Technology 149, down to Utilities 20), Netflix and Erste Group Bank AG both correctly classified, and every sampled UK private company (`Lockhouse Systems Limited`, `AccuRx Ltd`, etc.) and every US Treasury bond correctly left `null` — Treasuries don't have a meaningful equity sector to begin with, so this is the honest answer, not a gap.
 
 ## 5. `committee_sector_relevance` weight seeding
 
@@ -66,9 +73,9 @@ EU has no committee structure — Commissioners hold individual portfolios inste
 graph TD
   s0["0. Fix UK ingestion (resolved)"]:::done
   s1["1. Sector taxonomy (decided)"]:::done
-  s2["2. Yahoo Finance wrapper"]:::open
-  s3["3. Securities identity resolution"]:::open
-  s4["4. Securities sector classification"]:::open
+  s2["2. Yahoo Finance wrapper (resolved)"]:::done
+  s3["3. Securities identity resolution (resolved)"]:::done
+  s4["4. Securities sector classification (resolved)"]:::done
   s5["5. committee_sector_relevance seeding"]:::open
   s6["6. EU portfolio path"]:::open
   done3rnk["3RNK.1 complete"]:::mile
