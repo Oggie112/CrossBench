@@ -20,18 +20,48 @@ interface YahooSearchResponse {
 	quotes: YahooSearchQuote[];
 }
 
+const MAX_ATTEMPTS = 4;
+const RETRY_BASE_DELAY_MS = 1000;
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // Yahoo's quoteSummary/assetProfile endpoint (what the yfinance Python
 // library wraps) now requires a session crumb and rejects anonymous
 // requests - confirmed directly, "Invalid Crumb" on a plain fetch. The
 // search endpoint doesn't require one and returns sector/industry inline
 // on equity results, so it covers both the ticker and company-name cases
 // without needing crumb/cookie handling at all.
+//
+// Confirmed directly under real bulk load: a plain ECONNRESET partway
+// through ~1500 sequential requests, not a clean HTTP error - this is an
+// unofficial endpoint and needs to be treated as flaky, not just rate-
+// limited. Retries transient network failures with backoff; a real HTTP
+// error status still throws immediately, since that's not a "try again"
+// situation.
 async function search(query: string): Promise<SecurityMatch[]> {
 	const url = `${SEARCH_URL}?q=${encodeURIComponent(query)}`;
-	const response = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
-	if (!response.ok) throw new Error(`Yahoo Finance search failed: ${response.status} ${response.statusText}`);
 
-	const data: YahooSearchResponse = await response.json();
+	let lastError: unknown;
+	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+		let response: Response;
+		try {
+			response = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+		} catch (err) {
+			lastError = err;
+			if (attempt < MAX_ATTEMPTS) await sleep(RETRY_BASE_DELAY_MS * attempt);
+			continue;
+		}
+
+		if (!response.ok) throw new Error(`Yahoo Finance search failed: ${response.status} ${response.statusText}`);
+		return parseQuotes(await response.json());
+	}
+
+	throw new Error(`Yahoo Finance search failed after ${MAX_ATTEMPTS} attempts: ${String(lastError)}`);
+}
+
+function parseQuotes(data: YahooSearchResponse): SecurityMatch[] {
 	return (data.quotes ?? [])
 		.filter((q) => q.quoteType === "EQUITY")
 		.map((q) => ({

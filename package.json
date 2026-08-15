@@ -10,7 +10,8 @@
     "seed:uk": "tsx --env-file=.env.local lib/identity/seed-uk.ts",
     "seed:us": "tsx --env-file=.env.local lib/identity/seed-us.ts",
     "seed:eu": "tsx --env-file=.env.local lib/identity/seed-eu.ts",
-    "resolve:securities": "tsx --env-file=.env.local lib/securities/resolve-securities.ts"
+    "resolve:securities": "tsx --env-file=.env.local lib/securities/resolve-securities.ts",
+    "classify:sectors": "tsx --env-file=.env.local lib/securities/classify-sectors.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
