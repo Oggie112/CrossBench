@@ -27,3 +27,6 @@ pnpm-debug.log*
 
 # identity-seeding script output
 lib/identity/*.md
+
+# committee sector-relevance seeding audit
+lib/committees/*.md
