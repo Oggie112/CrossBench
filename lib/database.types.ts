@@ -279,11 +279,46 @@ export type Database = {
           },
         ]
       }
+      official_portfolios: {
+        Row: {
+          end_date: string | null
+          official_id: string
+          portfolio_id: string
+          start_date: string
+        }
+        Insert: {
+          end_date?: string | null
+          official_id: string
+          portfolio_id: string
+          start_date: string
+        }
+        Update: {
+          end_date?: string | null
+          official_id?: string
+          portfolio_id?: string
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "official_portfolios_official_id_fkey"
+            columns: ["official_id"]
+            isOneToOne: false
+            referencedRelation: "officials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "official_portfolios_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       officials: {
         Row: {
           chamber: string
           country: string
-          current_office: string | null
           external_ids: Json | null
           full_name: string
           id: string
@@ -292,7 +327,6 @@ export type Database = {
         Insert: {
           chamber: string
           country: string
-          current_office?: string | null
           external_ids?: Json | null
           full_name: string
           id?: string
@@ -301,7 +335,6 @@ export type Database = {
         Update: {
           chamber?: string
           country?: string
-          current_office?: string | null
           external_ids?: Json | null
           full_name?: string
           id?: string
@@ -310,6 +343,61 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "officials_country_fkey"
+            columns: ["country"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
+      portfolio_sector_relevance: {
+        Row: {
+          portfolio_id: string
+          sector: string
+          weight: number
+        }
+        Insert: {
+          portfolio_id: string
+          sector: string
+          weight: number
+        }
+        Update: {
+          portfolio_id?: string
+          sector?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_sector_relevance_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portfolios: {
+        Row: {
+          country: string
+          external_ids: Json | null
+          id: string
+          title: string
+        }
+        Insert: {
+          country: string
+          external_ids?: Json | null
+          id?: string
+          title: string
+        }
+        Update: {
+          country?: string
+          external_ids?: Json | null
+          id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolios_country_fkey"
             columns: ["country"]
             isOneToOne: false
             referencedRelation: "countries"
