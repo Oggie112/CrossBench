@@ -4,7 +4,7 @@ description: Work required before 3RNK.1 (committee/portfolio sector-relevance) 
 
 # Plan: 3RNK.1 Prerequisites
 
-The roadmap lists `3RNK.1` as a single line — "seed `committee_sector_relevance` weights." Scoping it out surfaced a larger dependency chain: `securities` has zero rows in production, nothing populates `disclosure_events.security_id`, and EU has no committee equivalent to seed weights against at all. This doc breaks that out. Agreed to sequence this ahead of the rest of Milestone 3.
+**Status: all 7 steps resolved.** The roadmap listed `3RNK.1` as a single line — "seed `committee_sector_relevance` weights." Scoping it out surfaced a larger dependency chain: `securities` had zero rows in production, nothing populated `disclosure_events.security_id`, and EU had no committee equivalent to seed weights against at all. This doc broke that out and tracked it ahead of the rest of Milestone 3.
 
 ## 0. Fix UK ingestion — resolved
 
@@ -69,14 +69,18 @@ A full audit file (`lib/committees/committee-sector-relevance-audit.md`, gitigno
 
 Final result, verified against the DB directly: **217 relevance rows** (151 at weight `1`, 66 at weight `0.5`) across **151 committees classified into sectors**, 102 general jurisdiction, 75 excluded, **0 unclassified**.
 
-## 6. EU portfolio path
+## 6. EU portfolio path — resolved
 
-EU has no committee structure — Commissioners hold individual portfolios instead, which the DOI declaration documents don't state anywhere (confirmed by direct inspection of all 27 documents). Needs its own structure, mirroring committees rather than reusing them (real mismatches beyond naming: portfolio is 1:1 with no role gradient vs. committee membership's many-to-many churn; `chamber NOT NULL` encodes a real legislative-chamber concept the Commission doesn't have; committee-relevance weights assume diluted/shared influence vs. a portfolio's near-exclusive authority; committee identity is stable by name for years, portfolio titles reshuffle every 5-year Commission term).
+EU has no committee structure — Commissioners hold individual portfolios instead, which the DOI declaration documents don't state anywhere (confirmed by direct inspection of all 27 documents). Built its own structure, mirroring committees rather than reusing them (real mismatches beyond naming: portfolio is 1:1 with no role gradient vs. committee membership's many-to-many churn; `chamber NOT NULL` encodes a real legislative-chamber concept the Commission doesn't have; committee-relevance weights assume diluted/shared influence vs. a portfolio's near-exclusive authority; committee identity is stable by name for years, portfolio titles reshuffle every 5-year Commission term).
 
-- Migrations: `portfolios` (id, title, country, external_ids), `official_portfolios` (official_id, portfolio_id, start_date, end_date — same shape as `official_committee_memberships`), `portfolio_sector_relevance` (portfolio_id, sector, weight — same shape as `committee_sector_relevance`).
-- Drop `officials.current_office` — confirmed unused (never populated by any seeder, never read anywhere), and the portfolio tables now cover the one credible use case that had been proposed for it.
-- Extend `seed-eu.ts`: exact full-name search against Wikidata (verified this resolves cleanly — tested von der Leyen, Kubilius) → filter `P39` ("position held") claims by label pattern (`"European Commissioner for..."`), not by missing end-date, since Wikidata's end-date qualifiers are confirmed stale/incomplete on at least one real commissioner (Kubilius still shows an open-ended "Member of the European Parliament" claim despite becoming Commissioner in Dec 2024) → upsert `portfolios` + `official_portfolios`. Cross-check against the Commission's own College of Commissioners page to catch exactly this kind of staleness.
-- Seed `portfolio_sector_relevance` for 27 portfolios — much smaller effort than step 5, a good pilot before it.
+- Migrations: `portfolios` (id, title, country, external_ids), `official_portfolios` (official_id, portfolio_id, start_date, end_date — same shape as `official_committee_memberships`), `portfolio_sector_relevance` (portfolio_id, sector, weight — same shape as `committee_sector_relevance`). `officials.current_office` dropped — confirmed unused (never populated by any seeder, never read anywhere).
+- **Wikidata dropped entirely as a source, not just as primary.** The original plan was Wikidata-primary with a Commission-site cross-check for staleness. Testing against real data flipped that: Wikidata missed one of 27 commissioners outright (zero current `P39` claims for Teresa Ribera), needed a hand-broadened label pattern to catch the President's and High Representative's non-"Commissioner" titles, and its labels are just a derived, crowd-sourced rendering of the same fact the Commission's own bio pages state directly and completely. Maintaining two integration paths where one already fully covers the need isn't a safety net, it's bloat — same reasoning as dropping GICS in favour of Yahoo's native taxonomy in step 1.
+- `lib/identity/eu-portfolio-source.ts` scrapes the Commission's own College of Commissioners page: discovers each commissioner's bio-page URL (including the President's, found structurally via her distinct `/president_en` link rather than matched by name — nothing breaks when the presidency changes hands), then extracts the role from a consistent `"<Name> is the <title>."` sentence on each page. Matches commissioners to pages by name-token overlap against the page's own stated name, not by guessing the URL slug — the Commission's slugs drop middle names/second surnames inconsistently (`"Teresa Ribera Rodríguez"` → `teresa-ribera`, Spanish double-surname convention) in a way that can't be reconstructed reliably from the DOI's full name.
+- **27/27 resolved**, zero manual review needed — full coverage, not just "good enough."
+- `lib/identity/classify-portfolio.ts` classifies each real portfolio title into sectors using the same primary/secondary weight convention as step 5 (first sector = `1`, additional = `0.5`, general = no row). A fixed list of 27 known titles rather than a generalisable pattern system, but kept as keyword rules (not a hardcoded name→classification map) so a minor title reword on a future scrape still matches.
+- A full audit file (`lib/identity/eu-portfolio-audit.md`, gitignored) lists all 27 commissioners with their resolved title and classification, same convention as the committees audit.
+
+Final result, verified against the DB directly: **27 portfolios, 27 `official_portfolios` memberships** (correctly 1:1), **22 `portfolio_sector_relevance` rows** (6 single-sector + 8 dual-sector portfolios, hand-counted from the audit and matched exactly against the DB) across 14 sector-classified portfolios and 13 general jurisdiction, **0 unresolved, 0 unclassified**.
 
 ## Dependencies
 
@@ -88,8 +92,8 @@ graph TD
   s3["3. Securities identity resolution (resolved)"]:::done
   s4["4. Securities sector classification (resolved)"]:::done
   s5["5. committee_sector_relevance seeding (resolved)"]:::done
-  s6["6. EU portfolio path"]:::open
-  done3rnk["3RNK.1 complete"]:::mile
+  s6["6. EU portfolio path (resolved)"]:::done
+  done3rnk["3RNK.1 prerequisites complete"]:::done
 
   s1 --> s2
   s2 --> s4
@@ -106,4 +110,4 @@ graph TD
   classDef mile fill:#9ff;
 ```
 
-`0` is independent — no dependency on the rest, do it first as agreed. `3` and `5`/`6` don't depend on each other and can run in parallel once the taxonomy is fixed. `3RNK.5` (wiring `committee_sector_relevance`/`portfolio_sector_relevance` into the actual `mv_signal_scores` formula) is downstream of this doc entirely and already tracked separately on the roadmap — not repeated here.
+All seven steps resolved. `committee_sector_relevance` (217 rows) and `portfolio_sector_relevance` (22 rows) both exist and are populated for the first time, `securities` went from 0 rows to 1,538 with 72% sector coverage (94.7% for equities specifically — the only instrument type that structurally has a sector), and the UK ingestion gap (both the ingestion-window bug and a separate officials-roster gap) is fixed. `3RNK.5` (wiring both relevance tables into the actual `mv_signal_scores` formula) is downstream of this doc entirely and already tracked separately on the roadmap — not repeated here, and not blocked by anything left in this doc.
