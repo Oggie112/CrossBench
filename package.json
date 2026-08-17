@@ -12,7 +12,8 @@
     "seed:eu": "tsx --env-file=.env.local lib/identity/seed-eu.ts",
     "resolve:securities": "tsx --env-file=.env.local lib/securities/resolve-securities.ts",
     "classify:sectors": "tsx --env-file=.env.local lib/securities/classify-sectors.ts",
-    "seed:committee-sectors": "tsx --env-file=.env.local lib/committees/seed-committee-sector-relevance.ts"
+    "seed:committee-sectors": "tsx --env-file=.env.local lib/committees/seed-committee-sector-relevance.ts",
+    "cleanup:eu-duplicates": "tsx --env-file=.env.local lib/ingestion/cleanup-eu-duplicates.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",

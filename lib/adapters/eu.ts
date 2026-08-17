@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { XMLParser } from "fast-xml-parser";
 import JSZip from "jszip";
 import type { ParsedDisclosure, RawDocument, SourceAdapter } from "./source-adapter";
@@ -156,6 +157,14 @@ function parseShareRows(tableXml: string): ShareRow[] {
 	return results;
 }
 
+// Fixed-size fingerprint of a commissioner's declared shares, used as the
+// dedup key in sourceRef instead of a fetch date - the DOI zip has no
+// reliable Last-Modified header (confirmed absent, CloudFront-served), so a
+// date-based ref changed every day regardless of whether content did.
+function hashShareRows(rows: ShareRow[]): string {
+	return createHash("sha256").update(JSON.stringify(rows)).digest("hex").slice(0, 16);
+}
+
 // EU figures use period as decimal separator and space as thousands
 // separator in every verified example (e.g. "131.04", "1 902 972") - no
 // comma-decimal convention observed, but not exhaustively confirmed.
@@ -180,11 +189,6 @@ export const euAdapter: SourceAdapter = {
 			throw new Error(`EU DOI ZIP fetch failed: ${response.status} ${response.statusText}`);
 		}
 
-		const lastModifiedHeader = response.headers.get("last-modified");
-		const snapshotDate = lastModifiedHeader
-			? new Date(lastModifiedHeader).toISOString().slice(0, 10)
-			: new Date().toISOString().slice(0, 10);
-
 		const buffer = await response.arrayBuffer();
 		const zip = await JSZip.loadAsync(buffer);
 
@@ -195,11 +199,13 @@ export const euAdapter: SourceAdapter = {
 
 			const xml = await entry.async("string");
 			const slug = commissionerSlug(entryName);
+			const tableXml = extractSharesTable(xml);
+			const rows = tableXml ? parseShareRows(tableXml) : [];
 			const content: EuRawContent = { xml, commissionerSlug: slug };
 
 			documents.push({
 				sourceName: "eu_commission_doi",
-				sourceRef: `${slug}_${snapshotDate}`,
+				sourceRef: `${slug}_${hashShareRows(rows)}`,
 				country: "EU",
 				content,
 			});
