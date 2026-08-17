@@ -54,9 +54,20 @@ Built `lib/securities/classify-sectors.ts`, operating over the 1,538 real `secur
 
 Final result: **1,101/1,538 classified (72%), 437 left `null`** — verified as the expected shape, not noise: sensible spread across all 11 Yahoo sectors (Industrials 190, Financial Services 150, Technology 149, down to Utilities 20), Netflix and Erste Group Bank AG both correctly classified, and every sampled UK private company (`Lockhouse Systems Limited`, `AccuRx Ltd`, etc.) and every US Treasury bond correctly left `null` — Treasuries don't have a meaningful equity sector to begin with, so this is the honest answer, not a gap.
 
-## 5. `committee_sector_relevance` weight seeding
+## 5. `committee_sector_relevance` weight seeding — resolved
 
-UK: 98 committees. US: 230 committees. 328 total — too many to hand-write cleanly. Do a keyword-heuristic first pass (committee name → sector) plus a manual review file, following the same "don't assume, flag it" convention as the existing unmatched-notes pattern in `seed-uk.ts`/`seed-us.ts`. Flag general-jurisdiction committees (e.g. House Appropriations) rather than letting them dilute every sector, per the Peez49 methodology.
+Built `lib/committees/classify-committee.ts` (an explicit, auditable rules table rather than a black-box heuristic) + `lib/committees/seed-committee-sector-relevance.ts`. Real domain knowledge, not blind keyword matching — e.g. "Ways and Means" has zero keyword tie to tax/trade/Social Security policy, and general-jurisdiction parents (Appropriations, Energy and Commerce, Oversight) often have genuinely specific subcommittees despite the parent being broad.
+
+**Weight is deliberately binary-with-a-secondary-tier, not fully graded**: a committee's first-listed sector gets weight `1` (primary), any additional sectors get `0.5` (secondary), and GENERAL/EXCLUDE committees get **no row at all** rather than an explicit `0` — the ranking formula's `coalesce(csr.weight, 0)` already treats an absent row as zero, so an explicit-zero row would be pure table bloat (up to 328×11 rows) for no behavioural difference. Matches Peez49's own methodology of not bothering with fine-grained weights, while still capturing the primary/secondary distinction from earlier planning.
+
+Three real distinctions carried through explicitly, not collapsed into one bucket:
+- **General jurisdiction** (e.g. House Appropriations' bare parent, UK's Business and Trade Committee) — broad, not sector-specific, but a legitimate committee.
+- **Excluded** (e.g. Ethics, Intelligence, private-bill committees, internal chamber administration) — no real sector jurisdiction at all, a different judgment from "broad."
+- **Classified into sectors** — the actual relevance rows.
+
+A full audit file (`lib/committees/committee-sector-relevance-audit.md`, gitignored, regenerated on every run) lists **all 328 committees** with their classification and reasoning, not just the ones that failed to match — sector classification is editorial judgment throughout, not a factual lookup, so every call needs to be checkable, not just the uncertain ones. Caught two real regex bugs from a first run's "unclassified" bucket before trusting the output: `\bBill\b` doesn't match plural "Bills" (word boundary sits between "Bill" and "s"), and an `Education...$`/`Services Committee \(Lords\)` pattern wrongly assumed chamber text lives inside the committee name string when it's actually a separate column. Also caught a reason-text bug the audit surfaced directly: a `Digital Assets` subcommittee rule's explanation claimed "a Financial Services subcommittee" but also correctly matched an Agriculture subcommittee with real CFTC/commodity-derivatives jurisdiction — the sector call was fine, the reasoning text was misleadingly specific and got corrected.
+
+Final result, verified against the DB directly: **217 relevance rows** (151 at weight `1`, 66 at weight `0.5`) across **151 committees classified into sectors**, 102 general jurisdiction, 75 excluded, **0 unclassified**.
 
 ## 6. EU portfolio path
 
@@ -76,7 +87,7 @@ graph TD
   s2["2. Yahoo Finance wrapper (resolved)"]:::done
   s3["3. Securities identity resolution (resolved)"]:::done
   s4["4. Securities sector classification (resolved)"]:::done
-  s5["5. committee_sector_relevance seeding"]:::open
+  s5["5. committee_sector_relevance seeding (resolved)"]:::done
   s6["6. EU portfolio path"]:::open
   done3rnk["3RNK.1 complete"]:::mile
 
