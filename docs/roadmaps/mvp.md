@@ -9,7 +9,7 @@ description: MVP roadmap for the political disclosure tracker — schema, four-s
 | **SCH**  | ✅ Milestone 1 schema complete (all 5 tables pushed) | —                                | —                                  |
 | **ADP**  | ✅ All in-scope adapters complete (UK, EU Commission, US House, US Senate) | — | AU deferred to Tier 3 (PDF/LLM extraction, see `1ADP.3`) |
 | **ING**  | ✅ Orchestrator + idempotency + error isolation + daily Vercel Cron all live in production | Staleness indicator (unblocked) | — |
-| **RNK**  | Not started   | Seed weights, `mv_trade_size_score`, cluster score, cross-jurisdiction (all unblocked — real data now exists) | — |
+| **RNK**  | `3RNK.1` done (see [3RNK.1 Prerequisites](../plan/3rnk1-prerequisites.md)), rest not started | `mv_trade_size_score`, cluster score, cross-jurisdiction (all unblocked — real data now exists) | — |
 | **FE**   | ✅ Next.js scaffold + Supabase client/types wired + `/us` feed live | Call/Put badge, `/global` feed (unblocked) | Homepage leaderboard/teasers/Recharts (need RNK) |
 | **BT**   | Not started   | Stooq price ingestion, backtest_positions table (unblocked) | Event-study logic (needs data) |
 
@@ -101,19 +101,18 @@ _None._
 
 <a name="m3-todo"><h4>To Do (Milestone 3)</h4></a>
 
-- [ ] 3RNK.1. Seed `committee_sector_relevance` weights — **scope is larger than this one line suggests; wasn't fully fleshed out when written.** `seed-uk.ts`/`seed-us.ts` already seed the `committees` and `official_committee_memberships` tables this depends on for UK/US. `seed-eu.ts` (new) seeds EU officials directly off the Commissioners' DOI documents — simpler than UK/US since matching is exact-slug rather than fuzzy — but EU Commissioners have no committee equivalent, so it doesn't give EU a path into sector relevance on its own. Scoping the actual weight-seeding also surfaced that `securities` has zero rows in production and nothing populates `disclosure_events.security_id` or a sector per security — prerequisites this line didn't account for. See [3RNK.1 Prerequisites](../plan/3rnk1-prerequisites.md) for the full breakdown and dependency order.
 - [ ] 3RNK.2. Build `mv_trade_size_score` materialized view — unblocked now that `1ING.2`/`2ING.4` (idempotency) are done and real disclosure data exists
 - [ ] 3RNK.3. Build `mv_cluster_score` materialized view (90-day distinct officials)
 - [ ] 3RNK.4. Build cross-jurisdiction `country_count` subquery
 
 <a name="m3-blocked"><h4>Blocked (Milestone 3)</h4></a>
 
-- [ ] 3RNK.5. Build `mv_signal_scores`, combining size/committee/cluster/cross-jurisdiction at 0.30/0.25/0.25/0.20 — **depends on 3RNK.1, 3RNK.2, 3RNK.3, 3RNK.4**
+- [ ] 3RNK.5. Build `mv_signal_scores`, combining size/committee/cluster/cross-jurisdiction at 0.30/0.25/0.25/0.20 — **depends on 3RNK.1 (done), 3RNK.2, 3RNK.3, 3RNK.4**
 - [ ] 3RNK.6. Wire materialized view refresh into the daily cron — **depends on 3RNK.5** (cron itself already exists — `1ING.1`/`2ING.6` — this just needs to add the refresh call to the same route)
 
 <a name="m3-done"><h4>Completed (Milestone 3)</h4></a>
 
-_None._
+- [x] 3RNK.1. Seed `committee_sector_relevance` weights — **turned out to be a 7-step prerequisite chain, not a one-liner** (see [3RNK.1 Prerequisites](../plan/3rnk1-prerequisites.md) for the full breakdown): fixed a UK ingestion bug and a separate officials-roster gap, decided the sector taxonomy, built a Yahoo Finance sector-lookup wrapper, resolved securities identity from raw disclosure text (0 → 1,538 rows), classified securities into sectors (94.7% of equity disclosures covered), seeded `committee_sector_relevance` for all 328 UK+US committees (217 rows), and built the EU portfolio path from scratch (`portfolios`/`official_portfolios`/`portfolio_sector_relevance`, 27/27 commissioners resolved) since EU has no committee structure to seed weights against at all.
 
 ---
 
@@ -191,8 +190,6 @@ m1["`**Milestone 1**<br/>Schema & Structured Sources`"]:::mile
 
 m2["`**Milestone 2**<br/>US Ingestion`"]:::mile
 
-3RNK.1["`*3RNK.1*<br/>**Ranking**<br/>seed committee weights`"]:::open
-
 3RNK.2["`*3RNK.2*<br/>**Ranking**<br/>mv_trade_size_score`"]:::open
 
 3RNK.3["`*3RNK.3*<br/>**Ranking**<br/>mv_cluster_score`"]:::open
@@ -200,7 +197,6 @@ m2["`**Milestone 2**<br/>US Ingestion`"]:::mile
 3RNK.4["`*3RNK.4*<br/>**Ranking**<br/>cross-jurisdiction subquery`"]:::open
 
 3RNK.5["`*3RNK.5*<br/>**Ranking**<br/>mv_signal_scores`"]:::blocked
-3RNK.1 --> 3RNK.5
 3RNK.2 --> 3RNK.5
 3RNK.3 --> 3RNK.5
 3RNK.4 --> 3RNK.5
