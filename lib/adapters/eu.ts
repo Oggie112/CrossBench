@@ -62,6 +62,30 @@ export function extractFullName(xml: string): string | null {
 	return name || null;
 }
 
+// Same cover-page signature block as extractFullName - "Date: DD/MM/YYYY"
+// immediately precedes "Signature" in every verified sample. This is the
+// commissioner's declaration/signing date, not our own ingestion time -
+// keeps notification_date meaning "when the source published this" the same
+// way UK/US define it, rather than tying EU's semantics to how promptly our
+// own pipeline happened to notice the change.
+export function extractDeclarationDate(xml: string): string | null {
+	const { text } = flattenWithOffsets(xml);
+	const anchor = "Date:";
+	const anchorIndex = text.indexOf(anchor);
+	if (anchorIndex === -1) return null;
+
+	const afterAnchor = text.slice(anchorIndex + anchor.length);
+	const signatureIndex = afterAnchor.indexOf("Signature");
+	if (signatureIndex === -1) return null;
+
+	const raw = afterAnchor.slice(0, signatureIndex).trim();
+	const match = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+	if (!match) return null;
+
+	const [, day, month, year] = match;
+	return `${year}-${month}-${day}`;
+}
+
 // Assumes tables in this form template never nest - true for this fixed
 // Code of Conduct form, not a general OOXML guarantee.
 function extractSharesTable(xml: string): string | null {
@@ -221,6 +245,7 @@ export const euAdapter: SourceAdapter = {
 		if (!tableXml) return [];
 
 		const rows = parseShareRows(tableXml);
+		const notificationDate = extractDeclarationDate(xml) ?? undefined;
 
 		const disclosures: ParsedDisclosure[] = [];
 		for (const row of rows) {
@@ -236,6 +261,7 @@ export const euAdapter: SourceAdapter = {
 				amountMin: value,
 				amountMax: value,
 				currency: row.currency || undefined,
+				notificationDate,
 				confidence: "high",
 			});
 		}
