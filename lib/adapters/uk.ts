@@ -12,6 +12,23 @@ const SHAREHOLDINGS_CATEGORY_ID = 8;
 const FETCH_WINDOW_DAYS = 90;
 const PAGE_SIZE = 20;
 
+// Register bands never carry a ceiling (e.g. "valued at more than £70,000"),
+// only a floor - amount_max is deliberately left unset rather than guessed.
+// The percentage-of-company band ("over 15% of issued share capital") has no
+// monetary figure in the source at all; anchored to the same £70,000 floor
+// as the fixed-value band below as a rough "comparably notable" proxy, not a
+// real value equivalence - the two thresholds aren't actually comparable,
+// this is just the least-bad ordering key available for mv_trade_size_score.
+const PERCENTAGE_BAND_ANCHOR = 70000;
+
+function parseAmountMin(band: string | null): number | undefined {
+	if (!band) return undefined;
+	const poundMatch = band.match(/£([\d,]+)/);
+	if (poundMatch) return Number(poundMatch[1].replace(/,/g, ""));
+	if (/%/.test(band)) return PERCENTAGE_BAND_ANCHOR;
+	return undefined;
+}
+
 interface InterestField {
 	name: string;
 	value: string | null;
@@ -91,6 +108,7 @@ export const ukAdapter: SourceAdapter = {
 				instrumentType: "equity",
 				asOfDate: registrableDate ?? interest.registrationDate,
 				notificationDate: interest.publishedDate,
+				amountMin: parseAmountMin(threshold),
 				valueBand: threshold ?? undefined,
 				confidence: "high",
 			},

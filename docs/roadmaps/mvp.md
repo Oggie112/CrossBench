@@ -9,7 +9,7 @@ description: MVP roadmap for the political disclosure tracker — schema, four-s
 | **SCH**  | ✅ Milestone 1 schema complete (all 5 tables pushed) | —                                | —                                  |
 | **ADP**  | ✅ All in-scope adapters complete (UK, EU Commission, US House, US Senate) | — | AU deferred to Tier 3 (PDF/LLM extraction, see `1ADP.3`) |
 | **ING**  | ✅ Orchestrator + idempotency + error isolation + daily Vercel Cron all live in production | Staleness indicator (unblocked) | — |
-| **RNK**  | `3RNK.1` done (see [3RNK.1 Prerequisites](../plan/3rnk1-prerequisites.md)), rest not started | `mv_trade_size_score`, cluster score, cross-jurisdiction (all unblocked — real data now exists) | — |
+| **RNK**  | `3RNK.1` done (see [3RNK.1 Prerequisites](../plan/3rnk1-prerequisites.md)); EU duplicate-ingestion bug fixed | `3RNK.2` (`mv_trade_size_score`) clear to start, cluster score + cross-jurisdiction also unblocked | — |
 | **FE**   | ✅ Next.js scaffold + Supabase client/types wired + `/us` feed live | Call/Put badge, `/global` feed (unblocked) | Homepage leaderboard/teasers/Recharts (need RNK) |
 | **BT**   | Not started   | Stooq price ingestion, backtest_positions table (unblocked) | Event-study logic (needs data) |
 
@@ -58,7 +58,7 @@ _None._
 - [x] 1ADP.1. Define common `SourceAdapter` interface (`fetch()` + `parse()`)
 - [x] 1ADP.2. Build UK adapter (Parliament Interests API, Shareholdings category, threshold-crossing)
 - [x] 1ADP.4. Build EU Commission adapter (Commissioners' Declarations of Interests ZIP, Section III.A.1 Shares only). Added a `currency` column to `disclosure_events` (EU figures are exact values in varying currencies — EUR, CZK confirmed — unlike UK's banded GBP-implicit thresholds). English-language declarations only (`-EN.xml`); confirmed every commissioner has one, flagged as an assumption to recheck if the source ever adds a commissioner without an EN translation.
-- [x] 1ING.2. Idempotency for EU (and UK) `raw_documents` — solved generically, not per-source: `runIngestion()` (`lib/ingestion/run-source.ts`) dedupes any adapter's fetched documents against existing `raw_documents.source_ref` before insert, so this didn't need EU-specific handling.
+- [x] 1ING.2. Idempotency for EU (and UK) `raw_documents` — solved generically, not per-source: `runIngestion()` (`lib/ingestion/run-source.ts`) dedupes any adapter's fetched documents against existing `raw_documents.source_ref` before insert, so this didn't need EU-specific handling. **Correction (2026-08-17):** EU's `sourceRef` still needed source-specific work — it was keyed on a snapshot date read from a `Last-Modified` header the DOI zip never actually sends, so the generic dedup never matched and every commissioner was re-inserted daily (351 duplicate `raw_documents` rows, 65 duplicate `disclosure_events`, confirmed live against production). Fixed by hashing parsed share-table content instead of a date ([PR #19](https://github.com/Oggie112/CrossBench/pull/19)); duplicates cleaned up in production down to the real 27 documents / 5 disclosures.
 - [x] 1ING.1. Vercel Cron for UK/EU — **not staggered per-source as originally scoped.** One combined daily job (`vercel.json`, `0 6 * * *`) hitting `/api/ingest`, which already loops all four sources sequentially with per-source error isolation. Hobby tier only supports once/day scheduling with ±59min precision anyway, so per-source staggering wouldn't have bought real timing precision. Deployed and verified live against production.
 
 ---
@@ -101,9 +101,10 @@ _None._
 
 <a name="m3-todo"><h4>To Do (Milestone 3)</h4></a>
 
-- [ ] 3RNK.2. Build `mv_trade_size_score` materialized view — unblocked now that `1ING.2`/`2ING.4` (idempotency) are done and real disclosure data exists
+- [ ] 3RNK.2. Build `mv_trade_size_score` materialized view — clear to start: `1ING.2`/`2ING.4` (idempotency) done, real disclosure data exists, and the EU duplicate-row bug (see `1ING.2` correction) is fixed and cleaned up in production, so the `percent_rank()` size distribution won't be skewed by 13x-duplicated EU holdings
 - [ ] 3RNK.3. Build `mv_cluster_score` materialized view (90-day distinct officials)
 - [ ] 3RNK.4. Build cross-jurisdiction `country_count` subquery
+- [ ] 3RNK.7. Decide size-signal approach for threshold-crossing disclosure types before `3RNK.5` — UK's `size_percentile` is pinned at 0 for every row (both Shareholdings bands anchor to the same £70,000 proxy, see `uk.ts`), capping UK's achievable `signal_score` at 0.70 vs 1.0+ for transaction-based sources, since the 0.30 size weight can never contribute. Root cause isn't UK-specific: any threshold-crossing register (this or a future source) reports "crossed X" rather than a transaction size, so there's no real magnitude to rank. Options: accept as documented MVP limitation; make the formula branch by `disclosure_type` so threshold-crossing types redistribute the 0.30 size weight across the other three terms instead of forcing a fake size axis; differentiate UK's two bands to at least break the internal tie (partial fix, doesn't close the cross-country ceiling gap on its own). No decision made yet. **Leaning:** branch `mv_signal_scores` by `disclosure_type` rather than treating this as UK-specific — transaction-type rows keep the size term as-is, threshold-crossing types redistribute the 0.30 weight proportionally across the other three so their ceiling stays 1.0. Tradeoff: `signal_score` becomes a `CASE`-branched formula instead of one flat expression, more SQL to maintain but honest about what each source actually measures.
 
 <a name="m3-blocked"><h4>Blocked (Milestone 3)</h4></a>
 
