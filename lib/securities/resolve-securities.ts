@@ -84,19 +84,21 @@ async function resolveSecurity(parsed: ParsedSecurity, cache: ResolutionCache): 
 		}
 	}
 
+	const ticker = parsed.ticker ?? yahooTicker;
+	const tickerIsFromYahoo = !parsed.ticker && Boolean(yahooTicker);
+
 	const { data: created, error } = await supabaseAdmin
 		.from("securities")
-		.insert({ canonical_name: parsed.canonicalName, primary_ticker: parsed.ticker ?? yahooTicker ?? null })
+		.insert({ canonical_name: parsed.canonicalName, primary_ticker: ticker ?? null })
 		.select("id")
 		.single();
 	if (error || !created) throw new Error(`Failed to create security "${parsed.canonicalName}": ${error?.message}`);
 
-	if (parsed.ticker) await insertIdentifier(created.id, "ticker", parsed.ticker);
+	if (ticker) await insertIdentifier(created.id, "ticker", ticker, tickerIsFromYahoo ? YAHOO_LOOKUP_CONTEXT : null);
 	if (parsed.cusip) await insertIdentifier(created.id, "cusip", parsed.cusip);
-	if (yahooTicker) await insertIdentifier(created.id, "ticker", yahooTicker, YAHOO_LOOKUP_CONTEXT);
 	await insertIdentifier(created.id, "name_alias", nameKey);
 
-	return finish(created.id, yahooTicker ? [...cacheKeys, `ticker:${yahooTicker}`] : cacheKeys, cache, true);
+	return finish(created.id, tickerIsFromYahoo ? [...cacheKeys, `ticker:${ticker}`] : cacheKeys, cache, true);
 }
 
 function finish(
