@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../supabase";
 import { parseSecurityText, normalizeNameAlias, type ParsedSecurity } from "./parse-security-text";
+import { findByIdentifier, insertIdentifier, lookupTickerOwner, YAHOO_LOOKUP_CONTEXT } from "./security-identifiers";
 
 interface DisclosureRow {
 	id: string;
@@ -24,22 +25,15 @@ async function fetchUnresolvedRows(): Promise<DisclosureRow[]> {
 	return rows;
 }
 
-async function findByIdentifier(type: string, value: string): Promise<string | null> {
-	const { data } = await supabaseAdmin
-		.from("security_identifiers")
-		.select("security_id")
-		.eq("identifier_type", type)
-		.eq("identifier_value", value)
-		.maybeSingle();
-	return data?.security_id ?? null;
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function insertIdentifier(securityId: string, type: string, value: string): Promise<void> {
-	const { error } = await supabaseAdmin
-		.from("security_identifiers")
-		.insert({ security_id: securityId, identifier_type: type, identifier_value: value });
-	if (error) throw new Error(`Failed to insert ${type} identifier "${value}": ${error.message}`);
-}
+// Only paces genuine Yahoo calls (see resolveSecurity's name-only branch),
+// not the thousands of cheap cache/DB hits this loop otherwise does -
+// matches classify-sectors.ts's pacing rationale, applied conditionally
+// since this loop is mixed-source rather than uniformly Yahoo-calling.
+const YAHOO_REQUEST_DELAY_MS = 200;
 
 // Cache keyed by whichever identifier resolved a security, so the huge
 // amount of real repetition (the same handful of tickers appear on
@@ -71,18 +65,38 @@ async function resolveSecurity(parsed: ParsedSecurity, cache: ResolutionCache): 
 	const foundByName = await findByIdentifier("name_alias", nameKey);
 	if (foundByName) return finish(foundByName, cacheKeys, cache, false);
 
+	// Name-only text (UK/EU disclosures never carry a ticker) - try
+	// resolving it via Yahoo Finance search before falling back to a
+	// name_alias-only security. See lib/securities/security-identifiers.ts.
+	let yahooTicker: string | null = null;
+	if (!parsed.ticker && !parsed.cusip) {
+		const lookup = await lookupTickerOwner(parsed.canonicalName);
+		await sleep(YAHOO_REQUEST_DELAY_MS);
+		if (lookup) {
+			yahooTicker = lookup.symbol;
+			if (lookup.existingSecurityId) {
+				// This UK/EU text resolved to a ticker a security already
+				// owns (e.g. from a prior US disclosure) - the actual
+				// cross-jurisdiction match happening.
+				await insertIdentifier(lookup.existingSecurityId, "name_alias", nameKey, YAHOO_LOOKUP_CONTEXT);
+				return finish(lookup.existingSecurityId, [...cacheKeys, `ticker:${yahooTicker}`], cache, false);
+			}
+		}
+	}
+
 	const { data: created, error } = await supabaseAdmin
 		.from("securities")
-		.insert({ canonical_name: parsed.canonicalName, primary_ticker: parsed.ticker ?? null })
+		.insert({ canonical_name: parsed.canonicalName, primary_ticker: parsed.ticker ?? yahooTicker ?? null })
 		.select("id")
 		.single();
 	if (error || !created) throw new Error(`Failed to create security "${parsed.canonicalName}": ${error?.message}`);
 
 	if (parsed.ticker) await insertIdentifier(created.id, "ticker", parsed.ticker);
 	if (parsed.cusip) await insertIdentifier(created.id, "cusip", parsed.cusip);
+	if (yahooTicker) await insertIdentifier(created.id, "ticker", yahooTicker, YAHOO_LOOKUP_CONTEXT);
 	await insertIdentifier(created.id, "name_alias", nameKey);
 
-	return finish(created.id, cacheKeys, cache, true);
+	return finish(created.id, yahooTicker ? [...cacheKeys, `ticker:${yahooTicker}`] : cacheKeys, cache, true);
 }
 
 function finish(
