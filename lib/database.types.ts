@@ -507,10 +507,84 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      mv_cluster_score: {
+        Row: {
+          distinct_officials_90d: number | null
+          security_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disclosure_events_security_id_fkey"
+            columns: ["security_id"]
+            isOneToOne: false
+            referencedRelation: "securities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mv_cross_jurisdiction_score: {
+        Row: {
+          country_count: number | null
+          security_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disclosure_events_security_id_fkey"
+            columns: ["security_id"]
+            isOneToOne: false
+            referencedRelation: "securities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mv_signal_scores: {
+        Row: {
+          cluster_count: number | null
+          committee_relevance: number | null
+          country: string | null
+          cross_jurisdiction_flag: number | null
+          disclosure_event_id: string | null
+          instrument_type: string | null
+          official_id: string | null
+          security_id: string | null
+          signal_score: number | null
+          size_percentile: number | null
+          transaction_date: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disclosure_events_country_fkey"
+            columns: ["country"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "disclosure_events_official_id_fkey"
+            columns: ["official_id"]
+            isOneToOne: false
+            referencedRelation: "officials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "disclosure_events_security_id_fkey"
+            columns: ["security_id"]
+            isOneToOne: false
+            referencedRelation: "securities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mv_trade_size_score: {
+        Row: {
+          disclosure_event_id: string | null
+          size_percentile: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      refresh_ranking_views: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

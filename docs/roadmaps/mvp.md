@@ -9,7 +9,7 @@ description: MVP roadmap for the political disclosure tracker — schema, four-s
 | **SCH**  | ✅ Milestone 1 schema complete (all 5 tables pushed) | —                                | —                                  |
 | **ADP**  | ✅ All in-scope adapters complete (UK, EU Commission, US House, US Senate) | — | AU deferred to Tier 3 (PDF/LLM extraction, see `1ADP.3`) |
 | **ING**  | ✅ Orchestrator + idempotency + error isolation + daily Vercel Cron all live in production | Staleness indicator (unblocked) | — |
-| **RNK**  | `3RNK.1`-`3RNK.5`, `3RNK.8`, `3RNK.9` (design) all done | `3RNK.6` (cron refresh, unblocked), `3RNK.10` (UK/EU formula) | — |
+| **RNK**  | `3RNK.1`-`3RNK.6`, `3RNK.8`, `3RNK.9` (design) all done | `3RNK.10` (UK/EU formula, time-gated) | — |
 | **FE**   | ✅ Next.js scaffold + Supabase client/types wired + `/us` feed live | Call/Put badge, `/global` feed (unblocked) | Homepage leaderboard/teasers/Recharts (need RNK) |
 | **BT**   | Not started   | Stooq price ingestion, backtest_positions table (unblocked) | Event-study logic (needs data) |
 
@@ -101,7 +101,6 @@ _None._
 
 <a name="m3-todo"><h4>To Do (Milestone 3)</h4></a>
 
-- [ ] 3RNK.6. Wire materialized view refresh into the daily cron — **unblocked, `3RNK.5` done** (cron itself already exists — `1ING.1`/`2ING.6` — needs to add `REFRESH MATERIALIZED VIEW` calls for all four `mv_*` views, in dependency order (`mv_trade_size_score`/`mv_cluster_score`/`mv_cross_jurisdiction_score` before `mv_signal_scores`), to the same route. Real gap this would close: building `3RNK.5` surfaced that none of the four views had been refreshed since creation - 71 US disclosures ingested since `mv_trade_size_score` was last refreshed were silently invisible to `mv_signal_scores` until a manual refresh, exactly the staleness this ticket exists to prevent going forward.
 - [ ] 3RNK.10. Build UK/EU's own notability formula — the two components `3RNK.9` sketched but couldn't complete, with very different readiness. **Ordinal severity signal (actionable now, revisit)**: UK's `size_percentile` still ties every row at 0 because both Shareholdings bands anchor to the same £70,000 proxy (`3RNK.2`); ranking `(i) >15% ownership` above `(ii) >£70k` to break that tie was considered and explicitly declined during `3RNK.2`/`3RNK.7` - nothing about it is actually blocked, worth treating as a real open decision rather than permanently closed. **Frequency-anomaly / burst detection (genuinely blocked)**: is filing activity spiking relative to a source's own historical baseline - UK's real volume is ~15/year (confirmed live against the Parliament API, see `3RNK.9`'s decision note), nowhere near enough history in the database yet to define what a baseline even is. Not an engineering gap - needs calendar time to pass, not more design or build effort. Revisit once meaningfully more UK/EU disclosure history has accumulated.
 
 <a name="m3-blocked"><h4>Blocked (Milestone 3)</h4></a>
@@ -121,6 +120,7 @@ _None._
 
   **Resolved (2026-08-19):** design question answered, formula-building work split out. `3RNK.5` unblocked and narrowed to `disclosure_type = 'transaction'` (US) only - the one source with all four inputs genuinely ready (`3RNK.8` closed the cross-jurisdiction data-layer gap). UK/EU's own formula moves to `3RNK.10`, itself split into an immediately-actionable piece (ordinal severity, explicitly worth revisiting) and a genuinely time-gated piece (frequency-anomaly, blocked on calendar history accumulating, not on more design work).
 - [x] 3RNK.5. Build `mv_signal_scores`, US-only (`disclosure_type = 'transaction'`) per `3RNK.9`'s decision — joins the three dimension views by name rather than the design doc's inline anonymous subquery, matching the `3RNK.2`-`3RNK.4` pattern; replaces the doc's correlated subquery for committee relevance with a plain join. Found and fixed one real bug the literal design-doc SQL had always carried, just never exercised: joining `official_committee_memberships` directly fans a single disclosure out into one row per membership (one real official has 20 rows) - `end_date` is never populated (0/4208), so there's no way to filter to "current" memberships either. Fixed by pre-aggregating committee relevance to one `MAX(weight)` row per `(official, sector)` in a CTE before joining, an accepted simplification given `end_date`'s gap rather than a deliberate design choice. Also found while building: 127/4036 US transaction rows had unresolved `official_id` (same shape of gap as `3RNK.3`/`3RNK.8`'s `security_id` issues, on the officials side) - closed by re-running `seed-us.ts`'s existing backfill step (127 → 23, the remainder genuinely unmatched, logged in `us-unmatched.md`). Also found: none of the three dependency views had been refreshed since creation - 71 disclosures ingested since then were invisible until a manual `REFRESH`, exactly the staleness `3RNK.6` exists to prevent going forward. Verified live after fixing all three: 4036 rows, one per US transaction disclosure (no fan-out, no gaps), scores spanning 0-0.84, top-scoring rows are large MSFT/AAPL option calls with real multi-official clustering - sensible given the formula's weights.
+- [x] 3RNK.6. Wire materialized view refresh into the daily cron — supabase-js has no way to run arbitrary SQL (it's a PostgREST wrapper, not a raw SQL client), so `REFRESH MATERIALIZED VIEW` had to be exposed as a Postgres function (`refresh_ranking_views()`, refreshes all four `mv_*` views in dependency order, `mv_signal_scores` last) and called via `supabaseAdmin.rpc(...)` from `/api/ingest` rather than issued directly. Plain `REFRESH`, not `CONCURRENTLY` - that needs a unique index on every view, none of which exist yet; acceptable at current traffic, revisit if it starts blocking reads noticeably. Regenerated `lib/database.types.ts` (`supabase gen types typescript`) since the typed client rejected the new RPC name otherwise - picked up the four views' row types for free too, never regenerated since `3RNK.2`-`3RNK.5` created them. Refresh runs unconditionally after the ingestion loop regardless of individual source outcomes, and a refresh failure is reported in the response rather than treated as an ingestion failure. Verified end-to-end for real: started the dev server, called the live route with the actual `CRON_SECRET`, got back `{"results": [...], "refresh": {"status": "success"}}` - not just a direct SQL test of the function in isolation.
 
 ---
 
@@ -200,9 +200,6 @@ m2["`**Milestone 2**<br/>US Ingestion`"]:::mile
 
 3RNK.10["`*3RNK.10*<br/>**Ranking**<br/>UK/EU notability formula`"]:::open
 3RNK.10 --> m3
-
-3RNK.6["`*3RNK.6*<br/>**Ranking**<br/>refresh on daily cron`"]:::open
-3RNK.6 --> m3
 
 m3["`**Milestone 3**<br/>Ranking Engine`"]:::mile
 
