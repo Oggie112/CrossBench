@@ -1,0 +1,5 @@
+# Normalize line endings to LF in the repository regardless of a
+# contributor's local core.autocrlf setting - the mismatch between this
+# being a Windows dev machine and git's own working-copy conversion was
+# causing intermittent tool-edit failures against files with CRLF endings.
+* text=auto eol=lf
