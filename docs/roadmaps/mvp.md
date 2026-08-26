@@ -102,6 +102,7 @@ _None._
 <a name="m3-todo"><h4>To Do (Milestone 3)</h4></a>
 
 - [ ] 3RNK.10. Build UK/EU's own notability formula — the two components `3RNK.9` sketched but couldn't complete, with very different readiness. **Ordinal severity signal (actionable now, revisit)**: UK's `size_percentile` still ties every row at 0 because both Shareholdings bands anchor to the same £70,000 proxy (`3RNK.2`); ranking `(i) >15% ownership` above `(ii) >£70k` to break that tie was considered and explicitly declined during `3RNK.2`/`3RNK.7` - nothing about it is actually blocked, worth treating as a real open decision rather than permanently closed. **Frequency-anomaly / burst detection (genuinely blocked)**: is filing activity spiking relative to a source's own historical baseline - UK's real volume is ~15/year (confirmed live against the Parliament API, see `3RNK.9`'s decision note), nowhere near enough history in the database yet to define what a baseline even is. Not an engineering gap - needs calendar time to pass, not more design or build effort. Revisit once meaningfully more UK/EU disclosure history has accumulated.
+- [ ] 3RNK.11. Switch `refresh_ranking_views()` to `REFRESH MATERIALIZED VIEW CONCURRENTLY` — plain `REFRESH` (shipped in `3RNK.6`) takes an `ACCESS EXCLUSIVE` lock, blocking all reads against a view for the full duration of its refresh. Harmless today with no concurrent traffic hitting these views, but the daily cron refresh will eventually overlap with real homepage visitors once `4FE.3` ships, and refresh time only grows as ingested data accumulates - starts invisible, grows quietly. `CONCURRENTLY` avoids the lock (readers keep seeing old data until a fast final swap) but requires a unique index first, since Postgres needs a stable per-row identity to reconcile old rows against new rather than replacing the whole result wholesale. All four views already have a natural key, just not indexed: `mv_trade_size_score`/`mv_signal_scores` are one row per `disclosure_event_id`, `mv_cluster_score`/`mv_cross_jurisdiction_score` are one row per `security_id` (literally their `GROUP BY` key). Not urgent at current traffic - logged so it isn't forgotten once real users are actually on the site concurrently with the cron.
 
 <a name="m3-blocked"><h4>Blocked (Milestone 3)</h4></a>
 
@@ -200,6 +201,9 @@ m2["`**Milestone 2**<br/>US Ingestion`"]:::mile
 
 3RNK.10["`*3RNK.10*<br/>**Ranking**<br/>UK/EU notability formula`"]:::open
 3RNK.10 --> m3
+
+3RNK.11["`*3RNK.11*<br/>**Ranking**<br/>CONCURRENTLY refresh`"]:::open
+3RNK.11 --> m3
 
 m3["`**Milestone 3**<br/>Ranking Engine`"]:::mile
 
