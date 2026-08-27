@@ -1,1 +1,47 @@
 @import "tailwindcss";
+
+@theme {
+	--color-ink: #221b14;
+	--color-paper: #f3eee2;
+	--color-bench: #2f4a3c;
+	--color-bench-dark: #1a2e24;
+	--color-brass: #b08d4f;
+	--color-division-red: #8c3b2e;
+
+	--color-jurisdiction-uk: #2f4a3c;
+	--color-jurisdiction-us: #1f3a5f;
+	--color-jurisdiction-eu: #2451a3;
+	--color-jurisdiction-au: #6b2c2c;
+
+	--radius-bench: 6px;
+}
+
+/* next/font's variables only exist on whatever element the .variable
+   classNames are applied to (html, in layout.tsx), not on :root in this
+   file - "inline" tells Tailwind to bake the var() reference directly into
+   generated utilities rather than declaring its own independent :root
+   custom property, per Next's documented pattern for this exact case. */
+@theme inline {
+	--font-display: var(--font-fraunces), serif;
+	--font-body: var(--font-source-serif), serif;
+	--font-mono: var(--font-ibm-plex-mono), monospace;
+	--font-sans: var(--font-inter), sans-serif;
+}
+
+/* design.md: dark mode inverts ink/paper; bench and brass stay fixed since
+   the brand color shouldn't shift with theme - only these two get
+   redeclared. No manual toggle exists yet, so this follows the system
+   setting only. */
+@media (prefers-color-scheme: dark) {
+	:root {
+		--color-ink: #f3eee2;
+		--color-paper: #1a2e24;
+	}
+}
+
+@layer base {
+	*:focus-visible {
+		outline: 2px solid var(--color-brass);
+		outline-offset: 2px;
+	}
+}
