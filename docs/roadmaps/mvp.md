@@ -10,7 +10,7 @@ description: MVP roadmap for the political disclosure tracker — schema, four-s
 | **ADP**  | ✅ All in-scope adapters complete (UK, EU Commission, US House, US Senate) | — | AU deferred to Tier 3 (PDF/LLM extraction, see `1ADP.3`) |
 | **ING**  | ✅ Orchestrator + idempotency + error isolation + daily Vercel Cron all live in production | Staleness indicator (unblocked) | — |
 | **RNK**  | `3RNK.1`-`3RNK.6`, `3RNK.8`, `3RNK.9` (design) all done | `3RNK.10` (UK/EU formula, time-gated) | — |
-| **FE**   | ✅ Next.js scaffold + Supabase client/types wired + `/us` feed live | Call/Put badge, `/global` feed (unblocked) | Homepage leaderboard/teasers/Recharts (need RNK) |
+| **FE**   | ✅ `/us` feed + homepage top-5 leaderboard live, design system foundation built | Call/Put badge, `/global` feed, teasers, Recharts (all unblocked) | — |
 | **BT**   | Not started   | Stooq price ingestion, backtest_positions table (unblocked) | Event-study logic (needs data) |
 
 ---
@@ -139,19 +139,20 @@ _None._
 
 - [ ] 4FE.7. Build `/global` feed (UK/AU/EU threshold crossings, framed as "position changes" not "trades")
 - [ ] 4FE.8. Add ▲Call/▼Put badge component for options
-- [ ] 4FE.3. Build homepage top-5 leaderboard from `mv_signal_scores` — **unblocked, `3RNK.5` done** (US-only for now, per `3RNK.9`'s decision — leaderboard is naturally US-scoped until `3RNK.10` exists)
+- [ ] 4FE.4. Build homepage teaser panels ("US activity this week", "Notable positions — UK/AU/EU") — **unblocked, `4FE.3` done**, neither had any other blocker
+- [ ] 4FE.5. Build always-visible "notable options activity" homepage list — **unblocked, `4FE.3` done**
+- [ ] 4FE.9. Integrate Recharts (leaderboard bars, score-over-time, sector volume) — **unblocked, `4FE.3` done**
 
 <a name="m4-blocked"><h4>Blocked (Milestone 4)</h4></a>
 
-- [ ] 4FE.4. Build homepage teaser panels ("US activity this week", "Notable positions — UK/AU/EU") — **depends on 4FE.3**
-- [ ] 4FE.5. Build always-visible "notable options activity" homepage list — **depends on 4FE.3**
-- [ ] 4FE.9. Integrate Recharts (leaderboard bars, score-over-time, sector volume) — **depends on 4FE.3**
+_None._
 
 <a name="m4-done"><h4>Completed (Milestone 4)</h4></a>
 
 - [x] 4FE.1. Scaffold Next.js (App Router) + TypeScript + Tailwind project
 - [x] 4FE.2. Generate Supabase TypeScript types and wire up typed client (`lib/supabase.ts`, publishable + secret key clients)
 - [x] 4FE.6. Build `/us` feed — scoped down from the original description: only an equity/options filter is wired up (real, queryable data), not chamber/party/committee/ticker, since those need officials/securities matching which is still deferred. Sorted by `notification_date`, not `transaction_date` (often 30-45 days stale). Found and fixed two real adapter bugs while testing against live data: US House filings failing on malformed URI decoding, and US Senate options being misclassified as `other` (losing the ranking formula's 2x options multiplier).
+- [x] 4FE.3. Build homepage top-5 leaderboard from `mv_signal_scores` — US-only per `3RNK.9`'s decision, heading states scope explicitly (`Top 5 — US Congress`) rather than implying broader coverage. First real use of `docs/design.md`'s visual system in code, which required building the whole foundation first (`app/globals.css`'s Tailwind v4 `@theme`/`@theme inline` blocks, `app/fonts.ts` loading all four typefaces via `next/font/google`) since none of it existed yet - `/us` had been running on generic Tailwind defaults. One real correction to `design.md` itself along the way: the original layout mockup assumed a single cross-jurisdiction ledger with a per-row `Jurisdiction` tag - no longer valid since `mv_signal_scores` is US-only, so the mockup and heading were corrected to state scope explicitly instead of implying coverage that doesn't exist. Verified two API details directly against `next/font`'s own `font-data.json` rather than assumed: IBM Plex Mono has no variable-weight option at all (unlike the other three fonts), and this Next.js version's generated type for Fraunces rejects a `"500 600"` range string despite the general `next/font` docs describing that syntax - loaded the full variable range instead, constraining to weight 500-600 via plain CSS at point of use. Query embeds `officials`/`securities` via Supabase's FK-based relation embedding directly on the view; confirmed via `tsc` (not assumed) that these resolve as singular nullable objects despite the generated types' `isOneToOne: false` metadata suggesting otherwise. `Size` column shows `size_percentile` as a percentile rather than a raw dollar figure - `mv_signal_scores` doesn't carry the underlying amount, and a percentile better matches the product's "notability signal, not investment advice" framing anyway. Cross-jurisdiction flag renders a small marker when set, correctly empty on every row today (no real overlap exists yet) but ready for when `3RNK.8`'s matching eventually finds one. Verified live against real production data, not just typechecked: top row is a real Josh Gottheimer MSFT option call at `0.84`, matching `3RNK.5`'s own verification when the view was first built.
 
 ---
 
@@ -208,20 +209,15 @@ m2["`**Milestone 2**<br/>US Ingestion`"]:::mile
 
 m3["`**Milestone 3**<br/>Ranking Engine`"]:::mile
 
-4FE.3["`*4FE.3*<br/>**Frontend**<br/>homepage leaderboard`"]:::open
+4FE.4["`*4FE.4*<br/>**Frontend**<br/>homepage teasers`"]:::open
 
-4FE.4["`*4FE.4*<br/>**Frontend**<br/>homepage teasers`"]:::blocked
-4FE.3 --> 4FE.4
-
-4FE.5["`*4FE.5*<br/>**Frontend**<br/>options activity list`"]:::blocked
-4FE.3 --> 4FE.5
+4FE.5["`*4FE.5*<br/>**Frontend**<br/>options activity list`"]:::open
 
 4FE.7["`*4FE.7*<br/>**Frontend**<br/>/global feed`"]:::open
 
 4FE.8["`*4FE.8*<br/>**Frontend**<br/>Call/Put badge`"]:::open
 
-4FE.9["`*4FE.9*<br/>**Frontend**<br/>Recharts integration`"]:::blocked
-4FE.3 --> 4FE.9
+4FE.9["`*4FE.9*<br/>**Frontend**<br/>Recharts integration`"]:::open
 
 m4["`**Milestone 4**<br/>Frontend`"]:::mile
 4FE.4 --> m4

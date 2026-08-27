@@ -1,7 +1,9 @@
+import TopFiveLeaderboard from "@/app/components/TopFiveLeaderboard";
+
 export default function Home() {
   return (
-    <main>
-      <div>Hello world!</div>
+    <main className="p-8">
+      <TopFiveLeaderboard />
     </main>
   );
 }
