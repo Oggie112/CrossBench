@@ -1,27 +1,24 @@
 import { supabase } from "@/lib/supabase";
 import InstrumentBadge from "@/app/components/InstrumentBadge";
 
-// US-only for now - mv_signal_scores only covers disclosure_type =
-// 'transaction' (see docs/roadmaps/mvp.md, 3RNK.9/3RNK.5). UK/EU get their
-// own unranked surfaces elsewhere rather than a shared score column, so the
-// heading states scope explicitly instead of implying broader coverage.
-export default async function TopFiveLeaderboard() {
+export default async function OptionsActivityList() {
 	const { data, error } = await supabase
 		.from("mv_signal_scores")
 		.select(
 			"disclosure_event_id, instrument_type, size_percentile, signal_score, cross_jurisdiction_flag, officials(full_name), securities(canonical_name, primary_ticker)",
 		)
+		.in("instrument_type", ["option_call", "option_put"])
 		.order("signal_score", { ascending: false })
-		.limit(5);
+		.limit(10);
 
 	if (error) {
-		return <p className="font-body text-ink">Failed to load leaderboard.</p>;
+		return <p className="font-body text-ink">Failed to load options activity.</p>;
 	}
 
 	return (
 		<section>
 			<h2 className="font-display font-semibold tracking-tight text-2xl mb-4 text-ink">
-				Top 5 — US Congress
+				Notable Options Activity
 			</h2>
 			<table className="w-full font-mono text-sm">
 				<thead>
