@@ -8,7 +8,7 @@ description: MVP roadmap for the political disclosure tracker — schema, four-s
 | -------- | ------------- | ----------------------------------------------- | --------------------------------- |
 | **SCH**  | ✅ Milestone 1 schema complete (all 5 tables pushed); RLS enabled schema-wide | —                                | —                                  |
 | **ADP**  | ✅ All in-scope adapters complete (UK, EU Commission, US House, US Senate) | — | AU deferred to Tier 3 (PDF/LLM extraction, see `1ADP.3`) |
-| **ING**  | ✅ Orchestrator + idempotency + error isolation + daily Vercel Cron all live in production | Staleness indicator (unblocked) | — |
+| **ING**  | ✅ Orchestrator + idempotency + error isolation + daily Vercel Cron + staleness indicator all live in production | — | — |
 | **RNK**  | `3RNK.1`-`3RNK.6`, `3RNK.8`, `3RNK.9` (design) all done | `3RNK.10` (UK/EU formula, time-gated) | — |
 | **FE**   | ✅ `/us` feed + homepage leaderboard + options activity list live, design system foundation built | `/global` feed, teasers, Recharts (all unblocked) | — |
 | **BT**   | Not started   | Stooq price ingestion, backtest_positions table (unblocked) | Event-study logic (needs data) |
@@ -42,7 +42,7 @@ _None._
 
 <a name="m1-todo"><h4>To Do (Milestone 1)</h4></a>
 
-- [ ] 1ING.3. Build "data last updated" footer indicator from `ingestion_runs`
+_None._
 
 <a name="m1-blocked"><h4>Blocked (Milestone 1)</h4></a>
 
@@ -60,6 +60,7 @@ _None._
 - [x] 1ADP.4. Build EU Commission adapter (Commissioners' Declarations of Interests ZIP, Section III.A.1 Shares only). Added a `currency` column to `disclosure_events` (EU figures are exact values in varying currencies — EUR, CZK confirmed — unlike UK's banded GBP-implicit thresholds). English-language declarations only (`-EN.xml`); confirmed every commissioner has one, flagged as an assumption to recheck if the source ever adds a commissioner without an EN translation.
 - [x] 1ING.2. Idempotency for EU (and UK) `raw_documents` — solved generically, not per-source: `runIngestion()` (`lib/ingestion/run-source.ts`) dedupes any adapter's fetched documents against existing `raw_documents.source_ref` before insert, so this didn't need EU-specific handling. **Correction (2026-08-17):** EU's `sourceRef` still needed source-specific work — it was keyed on a snapshot date read from a `Last-Modified` header the DOI zip never actually sends, so the generic dedup never matched and every commissioner was re-inserted daily (351 duplicate `raw_documents` rows, 65 duplicate `disclosure_events`, confirmed live against production). Fixed by hashing parsed share-table content instead of a date ([PR #19](https://github.com/Oggie112/CrossBench/pull/19)); duplicates cleaned up in production down to the real 27 documents / 5 disclosures.
 - [x] 1ING.1. Vercel Cron for UK/EU — **not staggered per-source as originally scoped.** One combined daily job (`vercel.json`, `0 6 * * *`) hitting `/api/ingest`, which already loops all four sources sequentially with per-source error isolation. Hobby tier only supports once/day scheduling with ±59min precision anyway, so per-source staggering wouldn't have bought real timing precision. Deployed and verified live against production.
+- [x] 1ING.3. Build "data last updated" footer indicator from `ingestion_runs` — surfaced a real access-control interaction with `1SCH.6`: `ingestion_runs` has RLS enabled with zero policies (default-deny for `anon`), so the footer's `DataFreshnessFooter` server component reads via `supabaseAdmin` rather than the public client used elsewhere in the frontend, deliberately - it's a server-only read (secret key never reaches the client bundle), not a precedent for using the admin client from any component that might end up client-side. Query takes `MAX(finished_at)` across `status in ('success', 'partial')` runs (not just `'success'`) - `2ING.5`'s per-document error isolation means a `'partial'` run still updated most of the data, so excluding it would understate freshness. Mounted in `app/layout.tsx` as a site-wide footer (all routes share the root layout), not per-page. Verified live: renders a real current timestamp (`2 Sept 2026, 07:43`) matching the daily cron's actual last run.
 - [x] 1SCH.6. Enable RLS across the schema — found live that RLS had never been enabled anywhere, and `anon`/`authenticated` had been granted full `SELECT/INSERT/UPDATE/DELETE/TRUNCATE` on every table by default: anyone with the publishable key (baked into the client bundle by Next.js's `NEXT_PUBLIC_` convention) could read, edit, delete, or wipe any table directly via the Supabase REST API, bypassing the app entirely - live and exploitable regardless of whether the frontend was even deployed, since the Supabase project itself is reachable directly. 11 genuinely public tables (`officials`, `committees`, `official_committee_memberships`, `committee_sector_relevance`, `securities`, `security_identifiers`, `portfolios`, `official_portfolios`, `portfolio_sector_relevance`, `countries`, `disclosure_events`) got RLS enabled with a flat `select ... using (true)` policy (not user-scoped data, so no row filtering needed) plus write grants revoked as defense-in-depth alongside RLS. `raw_documents`/`ingestion_runs` (internal processing state/operational metadata, no public value) got RLS enabled with zero policies - default-deny for `anon`/`authenticated`. Materialized views can't have RLS at all (confirmed directly: Postgres rejects `ALTER ... ENABLE ROW LEVEL SECURITY` outright on `relkind 'm'`) - found the opposite problem there, zero grants at all for `anon`/`authenticated`, meaning the future `4FE.3` leaderboard couldn't have read `mv_signal_scores` even legitimately; fixed with a plain `GRANT SELECT`. None of this touches ingestion - `supabaseAdmin` uses the `service_role` secret key, which bypasses RLS by design regardless of any policy here. Verified against the real live REST API with the actual publishable key, not just checked in the dashboard: `SELECT` on `disclosure_events` and `mv_signal_scores` both `200`; `SELECT` on `raw_documents`, `INSERT` on `officials`, and `DELETE` on `disclosure_events` all correctly `401 permission denied`.
 
 ---
@@ -194,10 +195,7 @@ graph TD
 
 1ADP.3["`*1ADP.3*<br/>**Adapters**<br/>Australia adapter - sourcing TBD`"]:::blocked
 
-1ING.3["`*1ING.3*<br/>**Ingestion**<br/>staleness indicator`"]:::open
-
 m1["`**Milestone 1**<br/>Schema & Structured Sources`"]:::mile
-1ING.3 --> m1
 
 m2["`**Milestone 2**<br/>US Ingestion`"]:::mile
 
