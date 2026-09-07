@@ -10,7 +10,7 @@ description: MVP roadmap for the political disclosure tracker — schema, four-s
 | **ADP**  | ✅ All in-scope adapters complete (UK, EU Commission, US House, US Senate) | — | AU deferred to Tier 3 (PDF/LLM extraction, see `1ADP.3`) |
 | **ING**  | ✅ Orchestrator + idempotency + error isolation + daily Vercel Cron + staleness indicator all live in production | — | — |
 | **RNK**  | `3RNK.1`-`3RNK.6`, `3RNK.8`, `3RNK.9` (design) all done | `3RNK.10` (UK/EU formula, time-gated) | — |
-| **FE**   | ✅ `/us` feed + homepage leaderboard + options activity list + footer live, design system foundation built | Nav, `/global` feed, teasers, About page, trade detail, official/stock profiles, 404, Recharts (all unblocked; scope expanded 2026-09-02) | — |
+| **FE**   | ✅ `/us` feed + homepage leaderboard + options activity list + footer + nav + About page live, design system foundation built | `/global` feed, teasers, trade detail, official/stock profiles, 404, Recharts (all unblocked; scope expanded 2026-09-02) | — |
 | **BT**   | Not started   | Stooq price ingestion, backtest_positions table (unblocked) | Event-study logic (needs data) |
 
 ---
@@ -140,10 +140,8 @@ _None._
 
 <a name="m4-todo"><h4>To Do (Milestone 4)</h4></a>
 
-- [ ] 4FE.10. Build site nav/header (`CROSSBENCH [UK][US][EU][AU]`, per `docs/design.md`'s mockup) — currently `/` and `/us` have no link between them at all; do this early, other pages should link through it rather than each inventing their own chrome
 - [ ] 4FE.7. Build `/global` feed (UK/AU/EU threshold crossings, framed as "position changes" not "trades")
 - [ ] 4FE.4. Build homepage teaser panels ("US activity this week", "Notable positions — UK/AU/EU") — **unblocked, `4FE.3` done**, neither had any other blocker
-- [ ] 4FE.11. Build About/methodology/disclaimer page — states the "notability score, not investment advice" framing to an actual user for the first time; also the natural home for the still-unresolved commercial-use legal caveat (Beyond MVP) until that's resolved
 - [ ] 4FE.12. Build individual disclosure/trade detail page — click through from any leaderboard/list row to the full disclosure (raw source text, transaction vs. notification date, source document link). No list built so far (leaderboard, options list, `/us`) links anywhere; this is the page that makes a `signal_score` verifiable against its source rather than just asserted
 - [ ] 4FE.13. Build official profile page (`/officials/[id]`) — promoted from Beyond MVP §3; full disclosure history, score history, committee/portfolio memberships for one official
 - [ ] 4FE.14. Build stock/security profile page (`/stocks/[ticker]`) — promoted from Beyond MVP §3; all disclosures for a security across officials **and jurisdictions**, the most direct surface for `3RNK.9`'s cross-jurisdiction differentiator (currently just a small flag glyph on a leaderboard row)
@@ -162,6 +160,8 @@ _None._
 - [x] 4FE.3. Build homepage top-5 leaderboard from `mv_signal_scores` — US-only per `3RNK.9`'s decision, heading states scope explicitly (`Top 5 — US Congress`) rather than implying broader coverage. First real use of `docs/design.md`'s visual system in code, which required building the whole foundation first (`app/globals.css`'s Tailwind v4 `@theme`/`@theme inline` blocks, `app/fonts.ts` loading all four typefaces via `next/font/google`) since none of it existed yet - `/us` had been running on generic Tailwind defaults. One real correction to `design.md` itself along the way: the original layout mockup assumed a single cross-jurisdiction ledger with a per-row `Jurisdiction` tag - no longer valid since `mv_signal_scores` is US-only, so the mockup and heading were corrected to state scope explicitly instead of implying coverage that doesn't exist. Verified two API details directly against `next/font`'s own `font-data.json` rather than assumed: IBM Plex Mono has no variable-weight option at all (unlike the other three fonts), and this Next.js version's generated type for Fraunces rejects a `"500 600"` range string despite the general `next/font` docs describing that syntax - loaded the full variable range instead, constraining to weight 500-600 via plain CSS at point of use. Query embeds `officials`/`securities` via Supabase's FK-based relation embedding directly on the view; confirmed via `tsc` (not assumed) that these resolve as singular nullable objects despite the generated types' `isOneToOne: false` metadata suggesting otherwise. `Size` column shows `size_percentile` as a percentile rather than a raw dollar figure - `mv_signal_scores` doesn't carry the underlying amount, and a percentile better matches the product's "notability signal, not investment advice" framing anyway. Cross-jurisdiction flag renders a small marker when set, correctly empty on every row today (no real overlap exists yet) but ready for when `3RNK.8`'s matching eventually finds one. Verified live against real production data, not just typechecked: top row is a real Josh Gottheimer MSFT option call at `0.84`, matching `3RNK.5`'s own verification when the view was first built.
 - [x] 4FE.8. Add instrument-type badge component — scoped up from the design doc's "▲Call/▼Put badge" description to cover all five `instrument_type` values (`option_call`/`option_put`/`equity`/`bond`/`other`/null), not just options: only the two option types get a directional glyph (equity/bond have no up/down meaning to signal), the rest render a plain neutral label, `—` for null. Built as `InstrumentBadge` and used in both `TopFiveLeaderboard` and `4FE.5`'s new list, replacing the raw `row.instrument_type` text cell in the former.
 - [x] 4FE.5. Build always-visible "notable options activity" homepage list — same query shape as `4FE.3` (`mv_signal_scores`, same joins), filtered to `instrument_type in (option_call, option_put)`, limit 10 (vs. the leaderboard's 5 — a longer always-visible list reads better than a second top-5). Mounted directly under the leaderboard on `/`, no toggle. Verified live: real rows (Nancy Pelosi GOOGL/INTC option calls among them), all real production data. Every one of today's top 15 rows across both lists happens to be `option_call` - a property of the ranking formula's 2x options multiplier concentrating high scores there (per `3RNK.5`'s own finding), not a bug in the filter or the badge; `InstrumentBadge` still handles all five types correctly, just untested against a real Put/Equity row in production today.
+- [x] 4FE.10. Build site nav/header (`SiteNav`) — deliberately smaller than `docs/design.md`'s full `CROSSBENCH [UK][US][EU][AU] Search` mockup: only links to pages that actually exist today (`/`, `/us`, the new `/about`) rather than a dead `/global` link before `4FE.7` ships, or a jurisdiction-tag row implying filtering that doesn't exist yet. Mounted in `app/layout.tsx` above `{children}`, site-wide like the footer. Fixes the real gap flagged in this milestone's 2026-09-02 scope note - `/` and `/us` had no link between them at all.
+- [x] 4FE.11. Build About/methodology/disclaimer page (`/about`) — first time the "notability score, not investment advice" framing (already load-bearing in the ranking-formula docs) reaches an actual user. States plainly: what's tracked, what the four-factor signal score means and what it doesn't (a return prediction), why UK/EU disclosures don't get a comparable score yet (per `3RNK.9`), and where the source data comes from. Linked from `SiteNav`. Verified live: `/about` returns 200, renders the disclaimer text.
 
 ---
 
@@ -215,13 +215,9 @@ m2["`**Milestone 2**<br/>US Ingestion`"]:::mile
 
 m3["`**Milestone 3**<br/>Ranking Engine`"]:::mile
 
-4FE.10["`*4FE.10*<br/>**Frontend**<br/>site nav/header`"]:::open
-
 4FE.4["`*4FE.4*<br/>**Frontend**<br/>homepage teasers`"]:::open
 
 4FE.7["`*4FE.7*<br/>**Frontend**<br/>/global feed`"]:::open
-
-4FE.11["`*4FE.11*<br/>**Frontend**<br/>About/methodology page`"]:::open
 
 4FE.12["`*4FE.12*<br/>**Frontend**<br/>trade detail page`"]:::open
 
@@ -234,10 +230,8 @@ m3["`**Milestone 3**<br/>Ranking Engine`"]:::mile
 4FE.9["`*4FE.9*<br/>**Frontend**<br/>Recharts integration`"]:::open
 
 m4["`**Milestone 4**<br/>Frontend`"]:::mile
-4FE.10 --> m4
 4FE.4 --> m4
 4FE.7 --> m4
-4FE.11 --> m4
 4FE.12 --> m4
 4FE.13 --> m4
 4FE.14 --> m4
