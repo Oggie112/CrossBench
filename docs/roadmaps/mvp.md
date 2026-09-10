@@ -10,7 +10,7 @@ description: MVP roadmap for the political disclosure tracker — schema, four-s
 | **ADP**  | ✅ All in-scope adapters complete (UK, EU Commission, US House, US Senate) | — | AU deferred to Tier 3 (PDF/LLM extraction, see `1ADP.3`) |
 | **ING**  | ✅ Orchestrator + idempotency + error isolation + daily Vercel Cron + staleness indicator all live in production | — | — |
 | **RNK**  | `3RNK.1`-`3RNK.6`, `3RNK.8`, `3RNK.9` (design) all done | `3RNK.10` (UK/EU formula, time-gated) | — |
-| **FE**   | ✅ `/us` feed + homepage leaderboard + options activity list live, design system foundation built | `/global` feed, teasers, Recharts (all unblocked) | — |
+| **FE**   | ✅ `/us` feed + homepage leaderboard + options activity list + footer live, design system foundation built | Nav, `/global` feed, teasers, About page, trade detail, official/stock profiles, 404, Recharts (all unblocked; scope expanded 2026-09-02) | — |
 | **BT**   | Not started   | Stooq price ingestion, backtest_positions table (unblocked) | Event-study logic (needs data) |
 
 ---
@@ -130,7 +130,9 @@ _None._
 <a name="m4"><h3>Milestone 4: Frontend</h3></a>
 
 > [!IMPORTANT]
-> **Goal:** Ship the three MVP pages (homepage, `/us`, `/global`) as Next.js Server Components reading directly from Supabase, framed as a notability signal rather than investment advice.
+> **Goal:** Ship a fully navigable site — homepage, `/us`, `/global`, plus the chrome and depth a public product in this space actually needs (nav, methodology/disclaimer, trade and profile detail pages) — as Next.js Server Components reading directly from Supabase, framed as a notability signal rather than investment advice.
+>
+> **Scope revised (2026-09-02):** a roadmap review found `docs/design.md`'s own layout mockup specifies site chrome (`CROSSBENCH [UK][US][EU][AU] Search` header) that had no backing task anywhere, and that the original MVP design doc scoped only 3 pages with no detail/profile views at all — meaning there was no way to navigate between the two live pages, no user-facing statement of the "notability signal, not investment advice" framing the ranking-formula docs treat as essential, and no way to see the source disclosure behind a leaderboard row. `4FE.10`-`4FE.15` close these gaps; `4FE.13`/`4FE.14` (official/stock profile pages) are promoted here from Beyond MVP §3 since a stock profile page is arguably the clearest surface for `3RNK.9`'s actual product differentiator (shared security identity across jurisdictions) and the user confirmed member/trade-detail pages matter for MVP, not just as a stretch goal. `/us` + `/global` (bundled UK/AU/EU, not split per-jurisdiction) stays the right split — confirmed against `3RNK.9`'s UK volume finding (~15/year), a standalone `/uk` page would be closer to empty than useful on its own.
 
 <a name="m4-doing"><h4>In Progress (Milestone 4)</h4></a>
 
@@ -138,9 +140,15 @@ _None._
 
 <a name="m4-todo"><h4>To Do (Milestone 4)</h4></a>
 
+- [ ] 4FE.10. Build site nav/header (`CROSSBENCH [UK][US][EU][AU]`, per `docs/design.md`'s mockup) — currently `/` and `/us` have no link between them at all; do this early, other pages should link through it rather than each inventing their own chrome
 - [ ] 4FE.7. Build `/global` feed (UK/AU/EU threshold crossings, framed as "position changes" not "trades")
 - [ ] 4FE.4. Build homepage teaser panels ("US activity this week", "Notable positions — UK/AU/EU") — **unblocked, `4FE.3` done**, neither had any other blocker
-- [ ] 4FE.9. Integrate Recharts (leaderboard bars, score-over-time, sector volume) — **unblocked, `4FE.3`/`4FE.5` done**
+- [ ] 4FE.11. Build About/methodology/disclaimer page — states the "notability score, not investment advice" framing to an actual user for the first time; also the natural home for the still-unresolved commercial-use legal caveat (Beyond MVP) until that's resolved
+- [ ] 4FE.12. Build individual disclosure/trade detail page — click through from any leaderboard/list row to the full disclosure (raw source text, transaction vs. notification date, source document link). No list built so far (leaderboard, options list, `/us`) links anywhere; this is the page that makes a `signal_score` verifiable against its source rather than just asserted
+- [ ] 4FE.13. Build official profile page (`/officials/[id]`) — promoted from Beyond MVP §3; full disclosure history, score history, committee/portfolio memberships for one official
+- [ ] 4FE.14. Build stock/security profile page (`/stocks/[ticker]`) — promoted from Beyond MVP §3; all disclosures for a security across officials **and jurisdictions**, the most direct surface for `3RNK.9`'s cross-jurisdiction differentiator (currently just a small flag glyph on a leaderboard row)
+- [ ] 4FE.15. Build 404/not-found page — baseline requirement for a public site, unmentioned until this review
+- [ ] 4FE.9. Integrate Recharts (leaderboard bars, score-over-time, sector volume) — **unblocked, `4FE.3`/`4FE.5` done**; score-over-time now has a concrete home once `4FE.13`/`4FE.14` exist, was previously scoped with nowhere to put it
 
 <a name="m4-blocked"><h4>Blocked (Milestone 4)</h4></a>
 
@@ -207,15 +215,33 @@ m2["`**Milestone 2**<br/>US Ingestion`"]:::mile
 
 m3["`**Milestone 3**<br/>Ranking Engine`"]:::mile
 
+4FE.10["`*4FE.10*<br/>**Frontend**<br/>site nav/header`"]:::open
+
 4FE.4["`*4FE.4*<br/>**Frontend**<br/>homepage teasers`"]:::open
 
 4FE.7["`*4FE.7*<br/>**Frontend**<br/>/global feed`"]:::open
 
+4FE.11["`*4FE.11*<br/>**Frontend**<br/>About/methodology page`"]:::open
+
+4FE.12["`*4FE.12*<br/>**Frontend**<br/>trade detail page`"]:::open
+
+4FE.13["`*4FE.13*<br/>**Frontend**<br/>official profile page`"]:::open
+
+4FE.14["`*4FE.14*<br/>**Frontend**<br/>stock profile page`"]:::open
+
+4FE.15["`*4FE.15*<br/>**Frontend**<br/>404 page`"]:::open
+
 4FE.9["`*4FE.9*<br/>**Frontend**<br/>Recharts integration`"]:::open
 
 m4["`**Milestone 4**<br/>Frontend`"]:::mile
+4FE.10 --> m4
 4FE.4 --> m4
 4FE.7 --> m4
+4FE.11 --> m4
+4FE.12 --> m4
+4FE.13 --> m4
+4FE.14 --> m4
+4FE.15 --> m4
 4FE.9 --> m4
 
 5BT.3["`*5BT.3*<br/>**Backtest**<br/>Stooq price ingestion`"]:::open
@@ -261,14 +287,15 @@ classDef mile fill:#9ff;
 
 Stretch goals from the design doc (§ "Stretch goals (v2+)"), not yet broken into tasks:
 
-1. Notable-options panel on homepage (build before a full `/options` page)
-2. Dedicated `/options` page with its own leaderboard
-3. Official and stock profile pages (`/officials/[id]`, `/stocks/[ticker]`)
-4. Policy/regulatory noise tracker (free RSS + keyword tagging, no LLM cost)
-5. Germany/France/Italy **+ Australia** tier via LLM-assisted PDF extraction (first real per-use cost — build only after the free four-source version proves the concept). AU joined this tier after investigation found no free structured source — see `1ADP.3`.
-6. Empirical formula re-weighting using free Stooq EOD data once backtest history accumulates
-7. Public API exposure via Supabase's auto-generated REST layer
-8. UK lobbying/gifts oversight tracker, using categories the Parliament Interests API already exposes but the current adapter ignores — Gifts/hospitality from UK and non-UK sources, Family members engaged in third-party lobbying, Land and property (full list confirmed live: 11 categories total, only `Shareholdings` currently ingested). Distinct from stretch goal 4's external RSS/bill-correlation idea - this reuses the same already-integrated API and adapter shape, just different category IDs, no new source. Surfaced from `3RNK.9`'s finding that Shareholdings itself carries little market-notability signal for UK (2025: 15 disclosures all year, zero public stocks) — this would be a genuinely different UK-specific oversight product (who's receiving what from whom) rather than an attempt to extract more stock-notability signal from a register that structurally doesn't have much to give.
+~~1. Notable-options panel on homepage~~ — **done, see `4FE.5`.**
+1. Dedicated `/options` page with its own leaderboard — explicitly volume-gated ("once volume justifies it"), no new information changes that; still deferred
+~~2. Official and stock profile pages (`/officials/[id]`, `/stocks/[ticker]`)~~ — **promoted to `4FE.13`/`4FE.14`** (2026-09-02 roadmap review, see Milestone 4's scope note)
+2. Policy/regulatory noise tracker (free RSS + keyword tagging, no LLM cost)
+3. Germany/France/Italy **+ Australia** tier via LLM-assisted PDF extraction (first real per-use cost — build only after the free four-source version proves the concept). AU joined this tier after investigation found no free structured source — see `1ADP.3`.
+4. Empirical formula re-weighting using free Stooq EOD data once backtest history accumulates
+5. Public API exposure via Supabase's auto-generated REST layer
+6. UK lobbying/gifts oversight tracker, using categories the Parliament Interests API already exposes but the current adapter ignores — Gifts/hospitality from UK and non-UK sources, Family members engaged in third-party lobbying, Land and property (full list confirmed live: 11 categories total, only `Shareholdings` currently ingested). Distinct from stretch goal 2's external RSS/bill-correlation idea - this reuses the same already-integrated API and adapter shape, just different category IDs, no new source. Surfaced from `3RNK.9`'s finding that Shareholdings itself carries little market-notability signal for UK (2025: 15 disclosures all year, zero public stocks) — this would be a genuinely different UK-specific oversight product (who's receiving what from whom) rather than an attempt to extract more stock-notability signal from a register that structurally doesn't have much to give.
+7. Site search (header search box shown in `docs/design.md`'s mockup, never scoped) — parked deliberately, not an oversight: without `4FE.13`/`4FE.14` there's nowhere meaningful for a search result to link to. Revisit once those ship.
 
 **Also flagged, not yet actionable:**
 - US commercial-use legal question (design doc § 4) — needs a real legal opinion before any monetization step.
