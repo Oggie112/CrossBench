@@ -10,7 +10,7 @@ description: MVP roadmap for the political disclosure tracker — schema, four-s
 | **ADP**  | ✅ All in-scope adapters complete (UK, EU Commission, US House, US Senate) | — | AU deferred to Tier 3 (PDF/LLM extraction, see `1ADP.3`) |
 | **ING**  | ✅ Orchestrator + idempotency + error isolation + daily Vercel Cron + staleness indicator all live in production | — | — |
 | **RNK**  | `3RNK.1`-`3RNK.6`, `3RNK.8`, `3RNK.9` (design) all done | `3RNK.10` (UK/EU formula, time-gated) | — |
-| **FE**   | ✅ `/us` feed + homepage leaderboard + options activity list + footer + nav + About page live, design system foundation built | `/global` feed, teasers, trade detail, official/stock profiles, 404, Recharts (all unblocked; scope expanded 2026-09-02) | — |
+| **FE**   | ✅ `/us` feed + homepage leaderboard + options activity list + footer + nav + About page + 404 page live, design system foundation built | `/global` feed, teasers, trade detail, official/stock profiles, Recharts (all unblocked; scope expanded 2026-09-02) | — |
 | **BT**   | Not started   | Stooq price ingestion, backtest_positions table (unblocked) | Event-study logic (needs data) |
 
 ---
@@ -145,7 +145,6 @@ _None._
 - [ ] 4FE.12. Build individual disclosure/trade detail page — click through from any leaderboard/list row to the full disclosure (raw source text, transaction vs. notification date, source document link). No list built so far (leaderboard, options list, `/us`) links anywhere; this is the page that makes a `signal_score` verifiable against its source rather than just asserted
 - [ ] 4FE.13. Build official profile page (`/officials/[id]`) — promoted from Beyond MVP §3; full disclosure history, score history, committee/portfolio memberships for one official
 - [ ] 4FE.14. Build stock/security profile page (`/stocks/[ticker]`) — promoted from Beyond MVP §3; all disclosures for a security across officials **and jurisdictions**, the most direct surface for `3RNK.9`'s cross-jurisdiction differentiator (currently just a small flag glyph on a leaderboard row)
-- [ ] 4FE.15. Build 404/not-found page — baseline requirement for a public site, unmentioned until this review
 - [ ] 4FE.9. Integrate Recharts (leaderboard bars, score-over-time, sector volume) — **unblocked, `4FE.3`/`4FE.5` done**; score-over-time now has a concrete home once `4FE.13`/`4FE.14` exist, was previously scoped with nowhere to put it
 
 <a name="m4-blocked"><h4>Blocked (Milestone 4)</h4></a>
@@ -162,6 +161,7 @@ _None._
 - [x] 4FE.5. Build always-visible "notable options activity" homepage list — same query shape as `4FE.3` (`mv_signal_scores`, same joins), filtered to `instrument_type in (option_call, option_put)`, limit 10 (vs. the leaderboard's 5 — a longer always-visible list reads better than a second top-5). Mounted directly under the leaderboard on `/`, no toggle. Verified live: real rows (Nancy Pelosi GOOGL/INTC option calls among them), all real production data. Every one of today's top 15 rows across both lists happens to be `option_call` - a property of the ranking formula's 2x options multiplier concentrating high scores there (per `3RNK.5`'s own finding), not a bug in the filter or the badge; `InstrumentBadge` still handles all five types correctly, just untested against a real Put/Equity row in production today.
 - [x] 4FE.10. Build site nav/header (`SiteNav`) — deliberately smaller than `docs/design.md`'s full `CROSSBENCH [UK][US][EU][AU] Search` mockup: only links to pages that actually exist today (`/`, `/us`, the new `/about`) rather than a dead `/global` link before `4FE.7` ships, or a jurisdiction-tag row implying filtering that doesn't exist yet. Mounted in `app/layout.tsx` above `{children}`, site-wide like the footer. Fixes the real gap flagged in this milestone's 2026-09-02 scope note - `/` and `/us` had no link between them at all.
 - [x] 4FE.11. Build About/methodology/disclaimer page (`/about`) — first time the "notability score, not investment advice" framing (already load-bearing in the ranking-formula docs) reaches an actual user. States plainly: what's tracked, what the four-factor signal score means and what it doesn't (a return prediction), why UK/EU disclosures don't get a comparable score yet (per `3RNK.9`), and where the source data comes from. Linked from `SiteNav`. Verified live: `/about` returns 200, renders the disclaimer text.
+- [x] 4FE.15. Build 404/not-found page (`app/not-found.tsx`) — checked the vendored Next.js docs rather than assumed, given `AGENTS.md`'s breaking-changes warning: confirmed a plain root `app/not-found.tsx` (stable since Next.js 13.3) already handles all unmatched URLs app-wide, no need for the newer experimental `global-not-found.js` (that's only for apps with multiple root layouts or top-level dynamic segments, neither true here). Renders inside the root layout automatically, so `SiteNav`/`DataFreshnessFooter` show on it for free without reimporting fonts/globals. Verified live: a nonexistent route returns a real `404` status (not `200`), page renders correctly with nav present; `/`, `/us`, `/about` all unaffected.
 
 ---
 
@@ -225,8 +225,6 @@ m3["`**Milestone 3**<br/>Ranking Engine`"]:::mile
 
 4FE.14["`*4FE.14*<br/>**Frontend**<br/>stock profile page`"]:::open
 
-4FE.15["`*4FE.15*<br/>**Frontend**<br/>404 page`"]:::open
-
 4FE.9["`*4FE.9*<br/>**Frontend**<br/>Recharts integration`"]:::open
 
 m4["`**Milestone 4**<br/>Frontend`"]:::mile
@@ -235,7 +233,6 @@ m4["`**Milestone 4**<br/>Frontend`"]:::mile
 4FE.12 --> m4
 4FE.13 --> m4
 4FE.14 --> m4
-4FE.15 --> m4
 4FE.9 --> m4
 
 5BT.3["`*5BT.3*<br/>**Backtest**<br/>Stooq price ingestion`"]:::open
